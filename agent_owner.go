@@ -20,6 +20,12 @@ const (
 	agentStateReplaceMessages
 	agentStateAppendMessage
 	agentStateClearMessages
+	agentStateSubscribe
+	agentStateUnsubscribe
+	agentStateBeginRun
+	agentStateProcessEvent
+	agentStateFinishRun
+	agentStateCurrentIdle
 	agentStateClose
 )
 
@@ -30,12 +36,26 @@ type agentStateCommand struct {
 	thinking     ThinkingLevel
 	tools        []Tool
 	messages     []AgentMessage
+	subscriber   AgentSubscriber
+	subscriberID uint64
+	event        AgentEvent
+	runDone      chan struct{}
 	reply        chan agentStateReply
 }
 
 type agentStateReply struct {
-	state AgentState
-	err   error
+	state        AgentState
+	subscribers  []agentSubscriberEntry
+	subscriberID uint64
+	idle         <-chan struct{}
+	err          error
+}
+
+type agentOwnedState struct {
+	state            AgentState
+	subscribers      []agentSubscriberEntry
+	nextSubscriberID uint64
+	activeDone       chan struct{}
 }
 
 // Agent 通过单一 owner goroutine 串行管理高层状态。
@@ -44,6 +64,7 @@ type Agent struct {
 	done       chan struct{}
 	closeOnce  sync.Once
 	closeError error
+	loopConfig LoopConfig
 }
 
 // NewAgent 创建持有独立状态副本的高层 Agent。
@@ -53,8 +74,9 @@ func NewAgent(options AgentOptions) (*Agent, error) {
 		return nil, err
 	}
 	agent := &Agent{
-		commands: make(chan agentStateCommand),
-		done:     make(chan struct{}),
+		commands:   make(chan agentStateCommand),
+		done:       make(chan struct{}),
+		loopConfig: options.LoopConfig,
 	}
 	go agent.ownState(state)
 	return agent, nil
@@ -137,9 +159,10 @@ func (agent *Agent) execute(command agentStateCommand) (agentStateReply, error) 
 
 func (agent *Agent) ownState(state AgentState) {
 	defer close(agent.done)
+	owned := agentOwnedState{state: state}
 	for {
 		command := <-agent.commands
-		reply, stop := applyAgentStateCommand(&state, command)
+		reply, stop := applyAgentStateCommand(&owned, command)
 		command.reply <- reply
 		if stop {
 			return
@@ -147,25 +170,32 @@ func (agent *Agent) ownState(state AgentState) {
 	}
 }
 
-func applyAgentStateCommand(state *AgentState, command agentStateCommand) (agentStateReply, bool) {
+func applyAgentStateCommand(owned *agentOwnedState, command agentStateCommand) (agentStateReply, bool) {
 	switch command.operation {
 	case agentStateSnapshot:
-		snapshot, err := cloneAgentState(*state)
+		snapshot, err := cloneAgentState(owned.state)
 		return agentStateReply{state: snapshot, err: err}, false
 	case agentStateSetSystemPrompt:
-		state.SystemPrompt = command.systemPrompt
+		owned.state.SystemPrompt = command.systemPrompt
 	case agentStateSetModel:
-		state.Model = command.model
+		owned.state.Model = command.model
 	case agentStateSetThinkingLevel:
-		state.ThinkingLevel = command.thinking
+		owned.state.ThinkingLevel = command.thinking
 	case agentStateSetTools:
-		state.Tools = command.tools
+		owned.state.Tools = command.tools
 	case agentStateReplaceMessages:
-		state.Messages = command.messages
+		owned.state.Messages = command.messages
 	case agentStateAppendMessage:
-		state.Messages = append(state.Messages, command.messages[0])
+		owned.state.Messages = append(owned.state.Messages, command.messages[0])
 	case agentStateClearMessages:
-		state.Messages = []AgentMessage{}
+		owned.state.Messages = []AgentMessage{}
+	case agentStateSubscribe,
+		agentStateUnsubscribe,
+		agentStateBeginRun,
+		agentStateProcessEvent,
+		agentStateFinishRun,
+		agentStateCurrentIdle:
+		return applyAgentRuntimeCommand(owned, command), false
 	case agentStateClose:
 		return agentStateReply{}, true
 	}

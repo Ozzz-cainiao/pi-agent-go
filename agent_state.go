@@ -46,6 +46,7 @@ type AgentInitialState struct {
 // AgentOptions 配置高层 Agent。
 type AgentOptions struct {
 	InitialState *AgentInitialState
+	LoopConfig   LoopConfig
 }
 
 func defaultAgentState() AgentState {
