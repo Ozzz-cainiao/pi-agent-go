@@ -93,7 +93,11 @@ func convertMessages(messages []agent.AgentMessage) ([]requestInputItem, error) 
 			}
 			items = append(items, requestInputItem{Role: "user", Content: content})
 		case agent.AssistantMessage:
-			items = append(items, convertAssistantMessage(value)...)
+			converted, err := convertAssistantMessage(value)
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, converted...)
 		case agent.ToolResultMessage:
 			items = append(items, requestInputItem{
 				Type:   "function_call_output",
@@ -125,7 +129,7 @@ func convertUserContent(contents []agent.UserContent) ([]requestContent, error) 
 	return converted, nil
 }
 
-func convertAssistantMessage(message agent.AssistantMessage) []requestInputItem {
+func convertAssistantMessage(message agent.AssistantMessage) ([]requestInputItem, error) {
 	items := make([]requestInputItem, 0, len(message.Content))
 	for _, content := range message.Content {
 		switch value := content.(type) {
@@ -137,7 +141,7 @@ func convertAssistantMessage(message agent.AssistantMessage) []requestInputItem 
 		case agent.ToolCall:
 			arguments, err := json.Marshal(value.Arguments)
 			if err != nil {
-				arguments = nil
+				return nil, &ProtocolError{Operation: "encode tool arguments", Cause: err}
 			}
 			items = append(items, requestInputItem{
 				Type:      "function_call",
@@ -147,7 +151,7 @@ func convertAssistantMessage(message agent.AssistantMessage) []requestInputItem 
 			})
 		}
 	}
-	return items
+	return items, nil
 }
 
 func convertTools(tools []agent.Tool) []requestTool {

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"slices"
 	"strings"
 
@@ -17,6 +16,9 @@ type streamEvent struct {
 	Response     apiResponse     `json:"response"`
 	Delta        string          `json:"delta"`
 	Text         string          `json:"text"`
+	Arguments    string          `json:"arguments"`
+	Code         string          `json:"code"`
+	Message      string          `json:"message"`
 	OutputIndex  int             `json:"output_index"`
 	ContentIndex int             `json:"content_index"`
 	Item         responseItem    `json:"item"`
@@ -29,17 +31,24 @@ type apiResponse struct {
 	Status            string         `json:"status"`
 	Output            []responseItem `json:"output"`
 	Usage             responseUsage  `json:"usage"`
+	Error             responseError  `json:"error"`
 	IncompleteDetails struct {
 		Reason string `json:"reason"`
 	} `json:"incomplete_details"`
 }
 
 type responseItem struct {
+	ID        string            `json:"id"`
 	Type      string            `json:"type"`
 	CallID    string            `json:"call_id"`
 	Name      string            `json:"name"`
 	Arguments string            `json:"arguments"`
 	Content   []responseContent `json:"content"`
+}
+
+type responseError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 type responseContent struct {
@@ -51,6 +60,13 @@ type responseUsage struct {
 	InputTokens  int64 `json:"input_tokens"`
 	OutputTokens int64 `json:"output_tokens"`
 	TotalTokens  int64 `json:"total_tokens"`
+	InputDetails struct {
+		CachedTokens     int64 `json:"cached_tokens"`
+		CacheWriteTokens int64 `json:"cache_write_tokens"`
+	} `json:"input_tokens_details"`
+	OutputDetails struct {
+		ReasoningTokens *int64 `json:"reasoning_tokens"`
+	} `json:"output_tokens_details"`
 }
 
 func decodeEventStream(
@@ -94,19 +110,23 @@ func sseDataFromLine(line string) (string, bool) {
 	return data, data != "" && data != "[DONE]"
 }
 
-func decodeAPIError(response *http.Response) error {
-	var payload struct {
-		Error struct {
-			Message string `json:"message"`
-		} `json:"error"`
+func cloneResponseMessage(message agent.AssistantMessage) agent.AssistantMessage {
+	message.Content = slices.Clone(message.Content)
+	for index, content := range message.Content {
+		if call, ok := content.(agent.ToolCall); ok {
+			call.Arguments = cloneJSONObject(call.Arguments)
+			message.Content[index] = call
+		}
 	}
-	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&payload); err != nil {
-		return fmt.Errorf("status %d: %w", response.StatusCode, ErrAPIResponse)
-	}
-	return fmt.Errorf("status %d: %s: %w", response.StatusCode, payload.Error.Message, ErrAPIResponse)
+	message.Usage.CacheWrite1HTokens = cloneInt64(message.Usage.CacheWrite1HTokens)
+	message.Usage.ReasoningTokens = cloneInt64(message.Usage.ReasoningTokens)
+	return message
 }
 
-func cloneTextMessage(message agent.AssistantMessage) agent.AssistantMessage {
-	message.Content = slices.Clone(message.Content)
-	return message
+func cloneInt64(value *int64) *int64 {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }

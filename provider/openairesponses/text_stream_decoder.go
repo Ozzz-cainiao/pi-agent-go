@@ -1,6 +1,7 @@
 package openairesponses
 
 import (
+	"errors"
 	"fmt"
 
 	agent "github.com/Ozzz-cainiao/pi-agent-go"
@@ -12,13 +13,15 @@ type textLocation struct {
 }
 
 type textStreamDecoder struct {
-	emit    agent.AssistantMessageEventSink
-	clock   agent.Clock
-	partial agent.AssistantMessage
-	slots   map[textLocation]int
-	order   []textLocation
-	ended   map[textLocation]bool
-	started bool
+	emit      agent.AssistantMessageEventSink
+	clock     agent.Clock
+	partial   agent.AssistantMessage
+	slots     map[textLocation]int
+	order     []textLocation
+	ended     map[textLocation]bool
+	tools     map[int]*toolStreamSlot
+	toolOrder []int
+	started   bool
 }
 
 func newTextStreamDecoder(emit agent.AssistantMessageEventSink, clock agent.Clock) *textStreamDecoder {
@@ -27,46 +30,13 @@ func newTextStreamDecoder(emit agent.AssistantMessageEventSink, clock agent.Cloc
 		clock: clock,
 		slots: make(map[textLocation]int),
 		ended: make(map[textLocation]bool),
+		tools: make(map[int]*toolStreamSlot),
 		partial: agent.AssistantMessage{
 			API:        "openai-responses",
 			Provider:   "openai",
 			StopReason: agent.StopReasonPending,
 			Timestamp:  clock().UnixMilli(),
 		},
-	}
-}
-
-func (decoder *textStreamDecoder) consume(event streamEvent) (agent.AssistantMessage, bool, error) {
-	switch event.Type {
-	case "response.created":
-		decoder.mergeResponse(event.Response)
-		return agent.AssistantMessage{}, false, decoder.start()
-	case "response.output_text.start":
-		return agent.AssistantMessage{}, false, decoder.startText(event.location())
-	case "response.output_item.added":
-		if event.Item.Type != "message" {
-			return agent.AssistantMessage{}, false, nil
-		}
-		return agent.AssistantMessage{}, false, decoder.startText(event.location())
-	case "response.content_part.added":
-		if event.Part.Type != "output_text" {
-			return agent.AssistantMessage{}, false, nil
-		}
-		return agent.AssistantMessage{}, false, decoder.startText(event.location())
-	case "response.output_text.delta":
-		return agent.AssistantMessage{}, false, decoder.appendText(event.location(), event.Delta)
-	case "response.output_text.done", "response.content_part.done":
-		return agent.AssistantMessage{}, false, decoder.endText(event.location(), event.Text)
-	case "response.output_item.done":
-		if event.Item.Type != "message" {
-			return agent.AssistantMessage{}, false, nil
-		}
-		return agent.AssistantMessage{}, false, decoder.endText(event.location(), textFromItem(event.Item))
-	case "response.completed", "response.incomplete":
-		message, err := decoder.finish(event.Response)
-		return message, true, err
-	default:
-		return agent.AssistantMessage{}, false, nil
 	}
 }
 
@@ -79,7 +49,7 @@ func (decoder *textStreamDecoder) start() error {
 		return nil
 	}
 	decoder.started = true
-	return decoder.send(agent.AssistantStartEvent{Partial: cloneTextMessage(decoder.partial)})
+	return decoder.send(agent.AssistantStartEvent{Partial: cloneResponseMessage(decoder.partial)})
 }
 
 func (decoder *textStreamDecoder) startText(location textLocation) error {
@@ -95,7 +65,7 @@ func (decoder *textStreamDecoder) startText(location textLocation) error {
 	decoder.partial.Content = append(decoder.partial.Content, agent.TextContent{})
 	return decoder.send(agent.AssistantTextStartEvent{
 		ContentIndex: index,
-		Partial:      cloneTextMessage(decoder.partial),
+		Partial:      cloneResponseMessage(decoder.partial),
 	})
 }
 
@@ -113,7 +83,7 @@ func (decoder *textStreamDecoder) appendText(location textLocation, delta string
 	return decoder.send(agent.AssistantTextDeltaEvent{
 		ContentIndex: index,
 		Delta:        delta,
-		Partial:      cloneTextMessage(decoder.partial),
+		Partial:      cloneResponseMessage(decoder.partial),
 	})
 }
 
@@ -137,7 +107,7 @@ func (decoder *textStreamDecoder) endText(location textLocation, finalText strin
 	return decoder.send(agent.AssistantTextEndEvent{
 		ContentIndex: index,
 		Content:      content.Text,
-		Partial:      cloneTextMessage(decoder.partial),
+		Partial:      cloneResponseMessage(decoder.partial),
 	})
 }
 
@@ -154,8 +124,16 @@ func (decoder *textStreamDecoder) finish(response apiResponse) (agent.AssistantM
 			return agent.AssistantMessage{}, err
 		}
 	}
+	for _, outputIndex := range decoder.toolOrder {
+		if err := decoder.endToolCall(outputIndex, responseItem{}); err != nil {
+			return agent.AssistantMessage{}, err
+		}
+	}
 	decoder.partial.StopReason = stopReasonFrom(response)
-	message := cloneTextMessage(decoder.partial)
+	if hasToolCall(decoder.partial) && decoder.partial.StopReason == agent.StopReasonStop {
+		decoder.partial.StopReason = agent.StopReasonToolUse
+	}
+	message := cloneResponseMessage(decoder.partial)
 	if err := decoder.send(agent.AssistantDoneEvent{Reason: message.StopReason, Message: message}); err != nil {
 		return agent.AssistantMessage{}, err
 	}
@@ -170,10 +148,7 @@ func (decoder *textStreamDecoder) mergeResponse(response apiResponse) {
 		decoder.partial.Model = response.Model
 		decoder.partial.ResponseModel = response.Model
 	}
-	decoder.partial.Usage = agent.Usage{
-		InputTokens: response.Usage.InputTokens, OutputTokens: response.Usage.OutputTokens,
-		TotalTokens: response.Usage.TotalTokens,
-	}
+	decoder.partial.Usage = usageFrom(response.Usage)
 }
 
 func (decoder *textStreamDecoder) backfillResponseText(response apiResponse) error {
@@ -181,19 +156,37 @@ func (decoder *textStreamDecoder) backfillResponseText(response apiResponse) err
 		return nil
 	}
 	for outputIndex, item := range response.Output {
-		text := textFromItem(item)
-		if text == "" {
-			continue
-		}
-		location := textLocation{outputIndex: outputIndex}
-		if err := decoder.startText(location); err != nil {
-			return err
-		}
-		if err := decoder.endText(location, text); err != nil {
-			return err
+		switch item.Type {
+		case "message":
+			location := textLocation{outputIndex: outputIndex}
+			if err := decoder.endText(location, textFromItem(item)); err != nil {
+				return err
+			}
+		case "function_call":
+			if err := decoder.endToolCall(outputIndex, item); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+func (decoder *textStreamDecoder) fail(response apiResponse, code, message string) error {
+	failedError := &ResponseFailedError{
+		ResponseID: response.ID, Status: response.Status, Code: code, Message: message,
+	}
+	decoder.mergeResponse(response)
+	if err := decoder.start(); err != nil {
+		return errors.Join(failedError, err)
+	}
+	decoder.partial.StopReason = agent.StopReasonError
+	decoder.partial.RawStopReason = response.Status
+	decoder.partial.ErrorMessage = message
+	emitError := decoder.send(agent.AssistantErrorEvent{
+		Reason: agent.StopReasonError,
+		Error:  cloneResponseMessage(decoder.partial),
+	})
+	return errors.Join(failedError, emitError)
 }
 
 func (decoder *textStreamDecoder) send(event agent.AssistantMessageEvent) error {
@@ -220,4 +213,13 @@ func stopReasonFrom(response apiResponse) agent.StopReason {
 		return agent.StopReasonLength
 	}
 	return agent.StopReasonStop
+}
+
+func hasToolCall(message agent.AssistantMessage) bool {
+	for _, content := range message.Content {
+		if _, ok := content.(agent.ToolCall); ok {
+			return true
+		}
+	}
+	return false
 }

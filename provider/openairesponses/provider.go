@@ -21,6 +21,8 @@ var (
 	ErrAPIResponse = errors.New("openai responses: api response error")
 	// ErrProtocol 表示远端响应不符合 Responses API 流协议。
 	ErrProtocol = errors.New("openai responses: protocol error")
+	// ErrResponseFailed 表示 Responses 流以失败事件终止。
+	ErrResponseFailed = errors.New("openai responses: response failed")
 )
 
 // Config 表示 Responses API Provider 的连接配置。
