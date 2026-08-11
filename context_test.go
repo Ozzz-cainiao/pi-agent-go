@@ -23,6 +23,7 @@ func TestAgentContext_WithMessages_returnsIndependentContext(t *testing.T) {
 	original := AgentContext{
 		SystemPrompt: "你是一个助手。",
 		Messages:     []Message{originalMessage},
+		Tools:        []Tool{stubTool{}},
 	}
 
 	// 执行
@@ -42,5 +43,11 @@ func TestAgentContext_WithMessages_returnsIndependentContext(t *testing.T) {
 	got.Messages[0] = addedMessage
 	if !reflect.DeepEqual(original.Messages[0], originalMessage) {
 		t.Fatal("modifying new context changed original context")
+	}
+
+	// 验证：两个上下文不共享 Tools slice 的底层数组
+	got.Tools[0] = nil
+	if original.Tools[0] == nil {
+		t.Fatal("modifying new context tools changed original context")
 	}
 }
