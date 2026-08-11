@@ -41,6 +41,29 @@ func RunAgentLoop(
 		current = current.WithMessages(response)
 
 		toolCalls := toolCallsFrom(response)
+
+		switch response.StopReason {
+		case StopReasonError, StopReasonAborted:
+			return newMessages, nil
+
+		case StopReasonLength:
+			if len(toolCalls) == 0 {
+				return newMessages, nil
+			}
+
+			for _, call := range toolCalls {
+				result := newTruncatedToolResultMessage(
+					call,
+					time.Now().UnixMilli(),
+				)
+
+				newMessages = append(newMessages, result)
+				current = current.WithMessages(result)
+			}
+
+			continue
+		}
+
 		if len(toolCalls) == 0 {
 			return newMessages, nil
 		}
@@ -82,4 +105,22 @@ func toolCallsFrom(message AssistantMessage) []ToolCall {
 	}
 
 	return calls
+}
+
+// newTruncatedToolResultMessage 为参数可能被截断的工具调用创建错误结果。
+func newTruncatedToolResultMessage(
+	call ToolCall,
+	timestamp int64,
+) ToolResultMessage {
+	message := fmt.Sprintf(
+		`Tool call %q was not executed: the response hit the output token limit, so its arguments may be truncated. Re-issue the tool call with complete arguments.`,
+		call.Name,
+	)
+
+	return newToolResultMessage(
+		call,
+		newErrorToolResult(message),
+		true,
+		timestamp,
+	)
 }
