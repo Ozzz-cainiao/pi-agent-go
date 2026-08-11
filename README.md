@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-项目目前只有工程骨架。Agent Core 的测试和实现将通过结对学习逐步加入，核心代码由仓库所有者亲自编写。
+项目已经包含可运行的 Agent Core、OpenAI Responses Provider 和一个最小命令行示例。功能仍按独立提交逐步扩展，便于沿提交历史学习每个行为。
 
 ## 上游基准
 
@@ -43,7 +43,7 @@ root `agent` Core 只定义公共类型与 Agent Loop 行为，不依赖任何�
 - Pi `AgentHarness`
 - Session Tree、Lane 和 JSONL 持久化
 - Compaction、Skills 和 Prompt Template
-- CLI/TUI 和本地文件工具
+- 生产级 CLI/TUI 和本地文件工具；仓库只提供 API 调用示例 CLI
 - root `agent` Core 内的实际模型 Provider 依赖
 - gRPC、Gateway、Kubernetes 和云端 Harness 服务
 
@@ -69,3 +69,42 @@ go vet ./...
 ```bash
 task check
 ```
+
+## Responses Provider 调用示例
+
+`cmd/pi-agent-example` 使用高层 `Agent` 调用 Responses API，并注册了一个简单的 `echo` 工具，用于展示 Model -> Tool -> Model 闭环。
+
+先设置当前账号可用的模型和 API Key：
+
+```bash
+export OPENAI_API_KEY='你的 API Key'
+export OPENAI_RESPONSES_MODEL='你的 Responses 模型名'
+```
+
+如果使用兼容 Responses API 的测试服务或公司代理，可以额外设置：
+
+```bash
+export OPENAI_BASE_URL='http://127.0.0.1:8080/v1'
+```
+
+随后运行：
+
+```bash
+go run ./cmd/pi-agent-example -prompt '请使用 echo 工具原样返回：你好'
+```
+
+缺少 `OPENAI_API_KEY` 或 `OPENAI_RESPONSES_MODEL` 时，命令会快速失败并只显示缺少的环境变量名。示例不会打印 API Key。不要把真实 Key 写入源码、测试、README 或提交到 Git；本地开发应通过 shell 环境或公司的 Secret 管理系统注入。
+
+不访问外网的 mock 闭环测试：
+
+```bash
+go test ./cmd/pi-agent-example -run TestRun_completesToolLoopAgainstMockServer -v
+```
+
+真实 API 冒烟测试：
+
+```bash
+go test ./cmd/pi-agent-example -run TestCLI_liveProvider -v
+```
+
+真实测试仅在 `OPENAI_API_KEY` 和 `OPENAI_RESPONSES_MODEL` 都存在时执行，否则会明确显示 `SKIP`。测试输出同样不会包含 API Key。
