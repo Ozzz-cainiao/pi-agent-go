@@ -2,11 +2,10 @@ package agent
 
 import "context"
 
-// AssistantMessageEvent 表示模型流中产生的一个事件。
-//
-// 具体事件类型将在后续流式响应阶段逐步加入。
+// AssistantMessageEvent 表示从 start 到 done/error 的一个 Assistant 流式事件。
 type AssistantMessageEvent interface {
 	isAssistantMessageEvent()
+	snapshot() AssistantMessageEvent
 }
 
 // AssistantMessageEventSink 接收模型流中产生的事件。
@@ -25,28 +24,12 @@ func assistantMessageEventSinkOrDiscard(
 	emit AssistantMessageEventSink,
 ) AssistantMessageEventSink {
 	if emit != nil {
-		return emit
+		return func(event AssistantMessageEvent) error {
+			return emit(event.snapshot())
+		}
 	}
 
 	return func(AssistantMessageEvent) error {
 		return nil
 	}
 }
-
-// AssistantStartEvent 表示模型开始生成响应。
-type AssistantStartEvent struct {
-	Partial AssistantMessage
-}
-
-// isAssistantMessageEvent 将 AssistantStartEvent 标记为流式事件。
-func (AssistantStartEvent) isAssistantMessageEvent() {}
-
-// AssistantTextDeltaEvent 表示模型生成了一段增量文本。
-type AssistantTextDeltaEvent struct {
-	ContentIndex int
-	Delta        string
-	Partial      AssistantMessage
-}
-
-// isAssistantMessageEvent 将 AssistantTextDeltaEvent 标记为流式事件。
-func (AssistantTextDeltaEvent) isAssistantMessageEvent() {}
