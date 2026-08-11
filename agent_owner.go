@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 )
 
 // ErrAgentClosed 表示 Agent owner 已停止接收状态操作。
@@ -83,6 +84,7 @@ type Agent struct {
 	done       chan struct{}
 	closeOnce  sync.Once
 	closeError error
+	closing    atomic.Bool
 	loopConfig LoopConfig
 }
 
@@ -162,23 +164,34 @@ func (agent *Agent) ClearMessages() error {
 	return err
 }
 
-// Close 停止 owner goroutine；重复调用是安全的。
+// Close 幂等发起关闭并取消 active run，但不在 subscriber 调用链中等待。
+// 调用方可通过 WaitForIdle 等待 owner 和当前 run 完全结束。
 func (agent *Agent) Close() error {
 	agent.closeOnce.Do(func() {
+		agent.closing.Store(true)
 		reply, err := agent.execute(agentStateCommand{operation: agentStateBeginClose})
 		if err != nil {
 			agent.closeError = err
 			return
 		}
-		if reply.idle != nil {
-			<-reply.idle
-		}
-		_, agent.closeError = agent.execute(agentStateCommand{operation: agentStateClose})
+		go agent.completeClose(reply.idle)
 	})
 	return agent.closeError
 }
 
+func (agent *Agent) completeClose(idle <-chan struct{}) {
+	if idle != nil {
+		<-idle
+	}
+	if _, err := agent.execute(agentStateCommand{operation: agentStateClose}); err != nil {
+		return
+	}
+}
+
 func (agent *Agent) execute(command agentStateCommand) (agentStateReply, error) {
+	if agent.closing.Load() && !allowedWhileClosing(command.operation) {
+		return agentStateReply{}, ErrAgentClosed
+	}
 	command.reply = make(chan agentStateReply, 1)
 	select {
 	case <-agent.done:
@@ -261,5 +274,6 @@ func allowedWhileClosing(operation agentStateOperation) bool {
 	return operation == agentStateProcessEvent ||
 		operation == agentStateFinishRun ||
 		operation == agentStateCurrentIdle ||
+		operation == agentStateBeginClose ||
 		operation == agentStateClose
 }

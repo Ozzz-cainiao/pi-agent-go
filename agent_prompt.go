@@ -137,8 +137,16 @@ func agentContextFromState(state AgentState) AgentContext {
 	}
 }
 
-// WaitForIdle 等待调用时正在执行的 run 完全 settled。
+// WaitForIdle 等待调用时的 run settled；关闭发起后则等待 owner 完全停止。
 func (agent *Agent) WaitForIdle(ctx context.Context) error {
+	if agent.closing.Load() {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for agent close: %w", ctx.Err())
+		case <-agent.done:
+			return nil
+		}
+	}
 	reply, err := agent.execute(agentStateCommand{operation: agentStateCurrentIdle})
 	if err != nil {
 		return err
