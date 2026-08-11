@@ -79,6 +79,7 @@ func executeToolCalls(
 			call,
 			runtime.clock().UnixMilli(),
 			onUpdate,
+			runtime.argumentValidator,
 		)
 		if updateError != nil {
 			return results, updateError

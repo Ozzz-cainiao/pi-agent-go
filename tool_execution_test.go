@@ -24,6 +24,7 @@ func TestExecuteToolCall_returnsSuccessfulResultMessage(t *testing.T) {
 		call,
 		100,
 		func(ToolResult) {},
+		JSONSchemaArgumentValidator{},
 	)
 
 	// 验证
@@ -55,6 +56,7 @@ func TestExecuteToolCall_returnsErrorForMissingTool(t *testing.T) {
 		call,
 		200,
 		func(ToolResult) {},
+		JSONSchemaArgumentValidator{},
 	)
 
 	// 验证
@@ -105,6 +107,7 @@ func TestExecuteToolCall_convertsToolErrorToResultMessage(t *testing.T) {
 		call,
 		300,
 		func(ToolResult) {},
+		JSONSchemaArgumentValidator{},
 	)
 
 	// 验证

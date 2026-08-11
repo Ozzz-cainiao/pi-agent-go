@@ -1,6 +1,9 @@
 package agent
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // executeToolCall 执行一次工具调用，并将结果转换为标准消息。
 func executeToolCall(
@@ -9,6 +12,7 @@ func executeToolCall(
 	call ToolCall,
 	timestamp int64,
 	onUpdate ToolUpdateFunc,
+	validator ArgumentValidator,
 ) ToolResultMessage {
 	tool, ok := findToolByName(tools, call.Name)
 	if !ok {
@@ -18,11 +22,24 @@ func executeToolCall(
 
 		return newToolResultMessage(call, result, true, timestamp)
 	}
+	preparedCall, err := prepareToolCallArguments(tool, call)
+	if err != nil {
+		result := newErrorToolResult(
+			fmt.Sprintf("Tool %q argument preparation failed: %v", call.Name, err),
+		)
+		return newToolResultMessage(call, result, true, timestamp)
+	}
+	if err := validator.Validate(ctx, tool.Definition(), preparedCall.Arguments); err != nil {
+		result := newErrorToolResult(
+			fmt.Sprintf("Tool %q arguments invalid: %v", call.Name, err),
+		)
+		return newToolResultMessage(call, result, true, timestamp)
+	}
 
 	if onUpdate == nil {
 		onUpdate = func(ToolResult) {}
 	}
-	result, err := tool.Execute(ctx, call, onUpdate)
+	result, err := tool.Execute(ctx, preparedCall, onUpdate)
 	if err != nil {
 		result = newErrorToolResult(err.Error())
 

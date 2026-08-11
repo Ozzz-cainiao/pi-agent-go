@@ -27,12 +27,13 @@ type ConvertToLLMFunc func(context.Context, []AgentMessage) ([]Message, error)
 
 // LoopConfig 集中声明 Agent Loop 的依赖与安全限制。
 type LoopConfig struct {
-	Stream           StreamFunc
-	TransformContext TransformContextFunc
-	ConvertToLLM     ConvertToLLMFunc
-	PrepareNextTurn  PrepareNextTurnFunc
-	Clock            Clock
-	MaxTurns         int
+	Stream            StreamFunc
+	TransformContext  TransformContextFunc
+	ConvertToLLM      ConvertToLLMFunc
+	PrepareNextTurn   PrepareNextTurnFunc
+	ArgumentValidator ArgumentValidator
+	Clock             Clock
+	MaxTurns          int
 }
 
 // LoopConfigError 描述不合法的 Agent Loop 配置字段。
@@ -67,12 +68,13 @@ func (turnError *MaxTurnsError) Unwrap() error {
 }
 
 type loopRuntime struct {
-	stream           StreamFunc
-	transformContext TransformContextFunc
-	convertToLLM     ConvertToLLMFunc
-	prepareNextTurn  PrepareNextTurnFunc
-	clock            Clock
-	maxTurns         int
+	stream            StreamFunc
+	transformContext  TransformContextFunc
+	convertToLLM      ConvertToLLMFunc
+	prepareNextTurn   PrepareNextTurnFunc
+	argumentValidator ArgumentValidator
+	clock             Clock
+	maxTurns          int
 }
 
 func (config LoopConfig) runtime() (loopRuntime, error) {
@@ -101,14 +103,19 @@ func (config LoopConfig) runtime() (loopRuntime, error) {
 	if convertToLLM == nil {
 		convertToLLM = defaultConvertToLLM
 	}
+	argumentValidator := config.ArgumentValidator
+	if argumentValidator == nil {
+		argumentValidator = JSONSchemaArgumentValidator{}
+	}
 
 	return loopRuntime{
-		stream:           config.Stream,
-		transformContext: config.TransformContext,
-		convertToLLM:     convertToLLM,
-		prepareNextTurn:  config.PrepareNextTurn,
-		clock:            clock,
-		maxTurns:         maxTurns,
+		stream:            config.Stream,
+		transformContext:  config.TransformContext,
+		convertToLLM:      convertToLLM,
+		prepareNextTurn:   config.PrepareNextTurn,
+		argumentValidator: argumentValidator,
+		clock:             clock,
+		maxTurns:          maxTurns,
 	}, nil
 }
 
