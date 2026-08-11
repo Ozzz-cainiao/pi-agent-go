@@ -22,10 +22,16 @@ tasks:
       - golangci-lint run --timeout 5m ./...
       - nilaway -include-pkgs "$(go list -m)/..." ./...
 
+  boundary:
+    desc: Verify Core dependency direction and Go file size
+    cmds:
+      - go run ./cmd/check-boundaries
+
   check:
     desc: Run formatting checks, static analysis, and tests
     cmds:
       - test -z "$(gofumpt -l .)"
+      - go run ./cmd/check-boundaries
       - golangci-lint run --timeout 5m ./...
       - nilaway -include-pkgs "$(go list -m)/..." ./...
       - go test -race -shuffle=on -count=1 ./...
