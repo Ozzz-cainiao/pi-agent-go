@@ -23,6 +23,7 @@ func TestExecuteToolCall_returnsSuccessfulResultMessage(t *testing.T) {
 		[]Tool{stubTool{}},
 		call,
 		100,
+		func(ToolResult) {},
 	)
 
 	// 验证
@@ -53,6 +54,7 @@ func TestExecuteToolCall_returnsErrorForMissingTool(t *testing.T) {
 		[]Tool{stubTool{}},
 		call,
 		200,
+		func(ToolResult) {},
 	)
 
 	// 验证
@@ -102,6 +104,7 @@ func TestExecuteToolCall_convertsToolErrorToResultMessage(t *testing.T) {
 		[]Tool{failingTool{}},
 		call,
 		300,
+		func(ToolResult) {},
 	)
 
 	// 验证

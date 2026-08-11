@@ -63,7 +63,26 @@ func executeToolCalls(
 		}); err != nil {
 			return results, err
 		}
-		result := executeToolCall(ctx, state.current.Tools, call, runtime.clock().UnixMilli())
+		var updateError error
+		onUpdate := func(partial ToolResult) {
+			if updateError != nil {
+				return
+			}
+			updateError = events.emit(AgentToolExecutionUpdateEvent{
+				ToolCallID: call.ID, ToolName: call.Name,
+				Arguments: call.Arguments, PartialResult: partial,
+			})
+		}
+		result := executeToolCall(
+			ctx,
+			state.current.Tools,
+			call,
+			runtime.clock().UnixMilli(),
+			onUpdate,
+		)
+		if updateError != nil {
+			return results, updateError
+		}
 		appendToolResult(state, result)
 		if err := events.emit(toolExecutionEndEvent(result)); err != nil {
 			return results, err

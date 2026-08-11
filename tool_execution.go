@@ -8,6 +8,7 @@ func executeToolCall(
 	tools []Tool,
 	call ToolCall,
 	timestamp int64,
+	onUpdate ToolUpdateFunc,
 ) ToolResultMessage {
 	tool, ok := findToolByName(tools, call.Name)
 	if !ok {
@@ -18,7 +19,10 @@ func executeToolCall(
 		return newToolResultMessage(call, result, true, timestamp)
 	}
 
-	result, err := tool.Execute(ctx, call, nil)
+	if onUpdate == nil {
+		onUpdate = func(ToolResult) {}
+	}
+	result, err := tool.Execute(ctx, call, onUpdate)
 	if err != nil {
 		result = newErrorToolResult(err.Error())
 

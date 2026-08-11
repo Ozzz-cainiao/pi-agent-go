@@ -75,6 +75,7 @@ func TestRunAgentLoop_closesLifecycleWhenStreamFails(t *testing.T) {
 func TestRunAgentLoop_returnsTypedAgentEventSinkError(t *testing.T) {
 	sinkError := errors.New("sink failed")
 	streamCalled := false
+	var events []AgentEventKind
 	_, err := RunAgentLoop(
 		context.Background(),
 		nil,
@@ -84,6 +85,7 @@ func TestRunAgentLoop_returnsTypedAgentEventSinkError(t *testing.T) {
 			return AssistantMessage{}, nil
 		}},
 		func(event AgentEvent) error {
+			events = append(events, event.Kind())
 			if event.Kind() == AgentEventTurnStart {
 				return sinkError
 			}
@@ -97,6 +99,14 @@ func TestRunAgentLoop_returnsTypedAgentEventSinkError(t *testing.T) {
 	}
 	if streamCalled {
 		t.Fatal("StreamFunc called after AgentEventSink failure")
+	}
+	wantEvents := []AgentEventKind{
+		AgentEventAgentStart,
+		AgentEventTurnStart,
+		AgentEventAgentEnd,
+	}
+	if !reflect.DeepEqual(events, wantEvents) {
+		t.Fatalf("event kinds = %#v, want %#v", events, wantEvents)
 	}
 }
 
