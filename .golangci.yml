@@ -18,8 +18,6 @@ linters:
     - funlen
     - gocognit
     - gocyclo
-    - gofumpt
-    - goimports
     - gosec
     - govet
     - ineffassign
@@ -53,9 +51,6 @@ linters:
       min-complexity: 25
     gocyclo:
       min-complexity: 15
-    goimports:
-      local-prefixes:
-        - github.com/Ozzz-cainiao/pi-agent-go
     nestif:
       min-complexity: 4
 
@@ -70,3 +65,7 @@ formatters:
   enable:
     - gofumpt
     - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/Ozzz-cainiao/pi-agent-go

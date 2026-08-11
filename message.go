@@ -1,0 +1,76 @@
+package agent
+
+// Message 表示 Agent 对话中的一条消息。
+//
+// 未导出的 isMessage 方法限制消息类型只能由 agent 包定义。
+type Message interface {
+	isMessage()
+}
+
+// UserContent 表示用户消息中允许出现的内容。
+//
+// 用户只能提交文本和图片，不能直接提交 ThinkingContent 或 ToolCall。
+type UserContent interface {
+	Content
+	isUserContent()
+}
+
+// UserMessage 表示用户发送给 Agent 的消息。
+type UserMessage struct {
+	Content   []UserContent
+	Timestamp int64
+}
+
+// isMessage 将 UserMessage 标记为 Message 的一种实现。
+func (UserMessage) isMessage() {}
+
+// AssistantContent 表示 Assistant 消息中允许出现的内容。
+type AssistantContent interface {
+	Content
+	isAssistantContent()
+}
+
+// AssistantMessage 表示模型生成的一条响应消息。
+type AssistantMessage struct {
+	Content       []AssistantContent
+	API           string
+	Provider      string
+	Model         string
+	ResponseModel string
+	ResponseID    string
+	Usage         Usage
+	StopReason    StopReason
+	ErrorMessage  string
+	RawStopReason string
+	Timestamp     int64
+}
+
+// isMessage 将 AssistantMessage 标记为 Message 的一种实现。
+func (AssistantMessage) isMessage() {}
+
+// ToolResultContent 表示工具结果消息中允许出现的内容。
+type ToolResultContent interface {
+	Content
+	isToolResultContent()
+}
+
+// ToolResultMessage 表示一次工具调用的执行结果。
+type ToolResultMessage struct {
+	ToolCallID     string
+	ToolName       string
+	Content        []ToolResultContent
+	Details        any
+	Usage          *Usage
+	AddedToolNames []string
+	IsError        bool
+	Timestamp      int64
+}
+
+// isMessage 将 ToolResultMessage 标记为 Message 的一种实现。
+func (ToolResultMessage) isMessage() {}
+
+// isToolResultContent 将 TextContent 标记为可用于工具结果消息的内容。
+func (TextContent) isToolResultContent() {}
+
+// isToolResultContent 将 ImageContent 标记为可用于工具结果消息的内容。
+func (ImageContent) isToolResultContent() {}

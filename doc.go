@@ -1,2 +1,2 @@
-// Package agent provides a model-independent agent loop inspired by pi-agent-core.
+// Package agent 提供与具体 Model Provider 无关的 Agent Loop。
 package agent
