@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -26,6 +27,8 @@ const (
 	agentStateProcessEvent
 	agentStateFinishRun
 	agentStateCurrentIdle
+	agentStateAbort
+	agentStateReset
 	agentStateClose
 )
 
@@ -40,6 +43,7 @@ type agentStateCommand struct {
 	subscriberID uint64
 	event        AgentEvent
 	runDone      chan struct{}
+	cancel       context.CancelFunc
 	reply        chan agentStateReply
 }
 
@@ -55,7 +59,7 @@ type agentOwnedState struct {
 	state            AgentState
 	subscribers      []agentSubscriberEntry
 	nextSubscriberID uint64
-	activeDone       chan struct{}
+	active           *agentActiveRun
 }
 
 // Agent 通过单一 owner goroutine 串行管理高层状态。
@@ -194,7 +198,9 @@ func applyAgentStateCommand(owned *agentOwnedState, command agentStateCommand) (
 		agentStateBeginRun,
 		agentStateProcessEvent,
 		agentStateFinishRun,
-		agentStateCurrentIdle:
+		agentStateCurrentIdle,
+		agentStateAbort,
+		agentStateReset:
 		return applyAgentRuntimeCommand(owned, command), false
 	case agentStateClose:
 		return agentStateReply{}, true
