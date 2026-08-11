@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -68,6 +69,51 @@ func TestRunAgentLoop_callsModelWithHistoryAndPrompt(t *testing.T) {
 	}
 
 	want := []Message{prompt, response}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("RunAgentLoop() = %#v, want %#v", got, want)
+	}
+}
+
+func TestRunAgentLoop_doesNotCallModelWhenContextCanceled(t *testing.T) {
+	// 准备
+	prompt := UserMessage{
+		Content: []UserContent{
+			TextContent{Text: "本轮问题"},
+		},
+		Timestamp: 1,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	modelCalled := false
+	streamFn := StreamFunc(func(
+		_ context.Context,
+		_ AgentContext,
+		_ AssistantMessageEventSink,
+	) (AssistantMessage, error) {
+		modelCalled = true
+
+		return AssistantMessage{}, nil
+	})
+
+	// 执行
+	got, err := RunAgentLoop(
+		ctx,
+		[]Message{prompt},
+		AgentContext{},
+		streamFn,
+	)
+
+	// 验证
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("RunAgentLoop() error = %v, want context.Canceled", err)
+	}
+	if modelCalled {
+		t.Fatal("RunAgentLoop() called Model after context cancellation")
+	}
+
+	want := []Message{prompt}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("RunAgentLoop() = %#v, want %#v", got, want)
 	}

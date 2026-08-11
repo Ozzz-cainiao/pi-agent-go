@@ -26,8 +26,15 @@ func RunAgentLoop(
 		streamFn  决定具体如何调用模型
 	*/
 	newMessages := slices.Clone(prompts)
+
+	// 在调用模型前判断本次 Agent 的 Loop 是否已经被取消或超时
+	if err := ctx.Err(); err != nil {
+		return newMessages, fmt.Errorf("run agent loop: %w", err)
+	}
+
 	current := initial.WithMessages(prompts...)
 
+	// ctx 在这里传递给 model
 	response, err := streamFn(
 		ctx,
 		current,
@@ -39,6 +46,7 @@ func RunAgentLoop(
 		return newMessages, fmt.Errorf("stream assistant response: %w", err)
 	}
 
+	// 即使 Model 没有执行，本轮用户输入仍然已经被 Agent Loop 接收。因此返回
 	newMessages = append(newMessages, response)
 
 	return newMessages, nil
