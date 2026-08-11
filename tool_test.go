@@ -41,7 +41,6 @@ func TestTool_contract(t *testing.T) {
 		},
 		nil,
 	)
-
 	// 验证
 	if err != nil {
 		t.Fatalf("Execute() returned error: %v", err)

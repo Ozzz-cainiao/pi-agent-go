@@ -24,7 +24,6 @@ func TestParseStopReason_accepts_known_reasons(t *testing.T) {
 		t.Run(tt.raw, func(t *testing.T) {
 			// When
 			got, err := ParseStopReason(tt.raw)
-
 			// Then
 			if err != nil {
 				t.Fatalf("ParseStopReason(%q) returned error: %v", tt.raw, err)
