@@ -20,3 +20,21 @@ type StreamFunc func(
 	agentContext AgentContext,
 	emit AssistantMessageEventSink,
 ) (AssistantMessage, error)
+
+// AssistantStartEvent 表示模型开始生成响应。
+type AssistantStartEvent struct {
+	Partial AssistantMessage
+}
+
+// isAssistantMessageEvent 将 AssistantStartEvent 标记为流式事件。
+func (AssistantStartEvent) isAssistantMessageEvent() {}
+
+// AssistantTextDeltaEvent 表示模型生成了一段增量文本。
+type AssistantTextDeltaEvent struct {
+	ContentIndex int
+	Delta        string
+	Partial      AssistantMessage
+}
+
+// isAssistantMessageEvent 将 AssistantTextDeltaEvent 标记为流式事件。
+func (AssistantTextDeltaEvent) isAssistantMessageEvent() {}

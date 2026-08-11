@@ -52,6 +52,7 @@ func TestRunAgentLoop_callsModelWithHistoryAndPrompt(t *testing.T) {
 		[]Message{prompt},
 		initial,
 		streamFn,
+		nil,
 	)
 
 	// 验证
@@ -103,6 +104,7 @@ func TestRunAgentLoop_doesNotCallModelWhenContextCanceled(t *testing.T) {
 		[]Message{prompt},
 		AgentContext{},
 		streamFn,
+		nil,
 	)
 
 	// 验证
@@ -116,5 +118,72 @@ func TestRunAgentLoop_doesNotCallModelWhenContextCanceled(t *testing.T) {
 	want := []Message{prompt}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("RunAgentLoop() = %#v, want %#v", got, want)
+	}
+}
+func TestRunAgentLoop_forwardsAssistantEvents(t *testing.T) {
+	// 准备
+	partial := AssistantMessage{
+		Content: []AssistantContent{
+			TextContent{Text: "模"},
+		},
+		StopReason: StopReasonPending,
+	}
+
+	response := AssistantMessage{
+		Content: []AssistantContent{
+			TextContent{Text: "模型回答"},
+		},
+		StopReason: StopReasonStop,
+	}
+
+	wantEvents := []AssistantMessageEvent{
+		AssistantStartEvent{
+			Partial: AssistantMessage{
+				StopReason: StopReasonPending,
+			},
+		},
+		AssistantTextDeltaEvent{
+			ContentIndex: 0,
+			Delta:        "模",
+			Partial:      partial,
+		},
+	}
+
+	streamFn := StreamFunc(func(
+		_ context.Context,
+		_ AgentContext,
+		emit AssistantMessageEventSink,
+	) (AssistantMessage, error) {
+		for _, event := range wantEvents {
+			if err := emit(event); err != nil {
+				return AssistantMessage{}, err
+			}
+		}
+
+		return response, nil
+	})
+
+	var gotEvents []AssistantMessageEvent
+	emit := AssistantMessageEventSink(func(event AssistantMessageEvent) error {
+		gotEvents = append(gotEvents, event)
+
+		return nil
+	})
+
+	// 执行
+	_, err := RunAgentLoop(
+		context.Background(),
+		nil,
+		AgentContext{},
+		streamFn,
+		emit,
+	)
+
+	// 验证
+	if err != nil {
+		t.Fatalf("RunAgentLoop() returned error: %v", err)
+	}
+	if !reflect.DeepEqual(gotEvents, wantEvents) {
+		t.Fatalf("events = %#v, want %#v", gotEvents, wantEvents)
 	}
 }

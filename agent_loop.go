@@ -12,6 +12,8 @@ func RunAgentLoop(
 	prompts []Message,
 	initial AgentContext,
 	streamFn StreamFunc,
+	emit AssistantMessageEventSink,
+
 ) ([]Message, error) {
 	/*
 		RunAgentLoop(
@@ -19,11 +21,13 @@ func RunAgentLoop(
 			处理这些 prompts,
 			基于 initial 上下文,
 			使用 streamFn 调用模型,
+			事件收集器
 		)
 		ctx       控制什么时候停止
 		prompts   表示本轮新增消息
 		initial   提供历史、system prompt 和 tools
 		streamFn  决定具体如何调用模型
+		emit      事件收集器 比如增量输出
 	*/
 	newMessages := slices.Clone(prompts)
 
@@ -34,13 +38,17 @@ func RunAgentLoop(
 
 	current := initial.WithMessages(prompts...)
 
+	if emit == nil {
+		emit = func(AssistantMessageEvent) error {
+			return nil
+		}
+	}
+
 	// ctx 在这里传递给 model
 	response, err := streamFn(
 		ctx,
 		current,
-		func(AssistantMessageEvent) error {
-			return nil
-		},
+		emit,
 	)
 	if err != nil {
 		return newMessages, fmt.Errorf("stream assistant response: %w", err)
