@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	agent "github.com/Ozzz-cainiao/pi-agent-go"
 )
@@ -28,6 +29,7 @@ type Config struct {
 	BaseURL    string
 	Model      string
 	HTTPClient *http.Client
+	Clock      agent.Clock
 }
 
 // Provider 调用 OpenAI Responses API。
@@ -36,6 +38,7 @@ type Provider struct {
 	baseURL    string
 	model      string
 	httpClient *http.Client
+	clock      agent.Clock
 }
 
 // New 创建一个 Responses API Provider。
@@ -55,12 +58,17 @@ func New(config Config) (*Provider, error) {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
+	clock := config.Clock
+	if clock == nil {
+		clock = time.Now
+	}
 
 	return &Provider{
 		apiKey:     config.APIKey,
 		baseURL:    baseURL,
 		model:      config.Model,
 		httpClient: httpClient,
+		clock:      clock,
 	}, nil
 }
 
@@ -94,5 +102,5 @@ func (provider *Provider) Stream(
 		return agent.AssistantMessage{}, decodeAPIError(response)
 	}
 
-	return decodeEventStream(response.Body, emit)
+	return decodeEventStream(response.Body, emit, provider.clock)
 }
