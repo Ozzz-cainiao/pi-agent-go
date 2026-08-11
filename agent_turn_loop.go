@@ -10,6 +10,12 @@ type loopState struct {
 	messages []AgentMessage
 }
 
+type completedTurn struct {
+	response    AssistantMessage
+	toolResults []ToolResultMessage
+	continues   bool
+}
+
 func runAgentTurns(
 	ctx context.Context,
 	prompts []AgentMessage,
@@ -21,40 +27,85 @@ func runAgentTurns(
 	if err != nil {
 		return fmt.Errorf("run agent loop: %w", err)
 	}
+	pending, err := getQueuedMessages(ctx, runtime.getSteeringMessages, "GetSteeringMessages")
+	if err != nil {
+		return err
+	}
 
 	for turn := 0; ; turn++ {
-		if err := validateTurn(ctx, turn, runtime.maxTurns); err != nil {
+		completed, turnError := runSingleTurn(ctx, turn, prompts, pending, runtime, events, state)
+		if turnError != nil {
+			return turnError
+		}
+		if isErrorTerminal(completed.response.StopReason) {
+			return nil
+		}
+		if err := prepareNextTurn(ctx, runtime.prepareNextTurn, state, completed.response, completed.toolResults); err != nil {
 			return err
 		}
-		if err := events.emit(AgentTurnStartEvent{}); err != nil {
-			return err
-		}
-		if turn == 0 {
-			if err := emitPromptMessages(events, prompts); err != nil {
-				return err
-			}
-		}
-
-		response, err := streamAssistantTurn(ctx, runtime, events, state)
+		stop, err := shouldStopAfterTurn(ctx, runtime.shouldStopAfterTurn, state, completed.response, completed.toolResults)
 		if err != nil {
 			return err
 		}
-		toolResults, continues, err := completeTurn(ctx, runtime, events, state, response)
+		if stop {
+			return nil
+		}
+		pending, err = getQueuedMessages(ctx, runtime.getSteeringMessages, "GetSteeringMessages")
 		if err != nil {
 			return err
 		}
-		if err := events.emit(AgentTurnEndEvent{
-			Message: response, ToolResults: toolResults,
-		}); err != nil {
+		if completed.continues || len(pending) > 0 {
+			continue
+		}
+		pending, err = getQueuedMessages(ctx, runtime.getFollowUpMessages, "GetFollowUpMessages")
+		if err != nil {
 			return err
 		}
-		if err := prepareNextTurn(ctx, runtime.prepareNextTurn, state, response, toolResults); err != nil {
-			return err
-		}
-		if !continues {
+		if len(pending) == 0 {
 			return nil
 		}
 	}
+}
+
+func runSingleTurn(
+	ctx context.Context,
+	turn int,
+	prompts []AgentMessage,
+	pending []AgentMessage,
+	runtime loopRuntime,
+	events agentEventEmitter,
+	state *loopState,
+) (completedTurn, error) {
+	if err := validateTurn(ctx, turn, runtime.maxTurns); err != nil {
+		return completedTurn{}, err
+	}
+	if err := events.emit(AgentTurnStartEvent{}); err != nil {
+		return completedTurn{}, err
+	}
+	if turn == 0 {
+		if err := emitPromptMessages(events, prompts); err != nil {
+			return completedTurn{}, err
+		}
+	}
+	if err := injectQueuedMessages(events, state, pending); err != nil {
+		return completedTurn{}, err
+	}
+	response, err := streamAssistantTurn(ctx, runtime, events, state)
+	if err != nil {
+		return completedTurn{}, err
+	}
+	toolResults, continues, err := completeTurn(ctx, runtime, events, state, response)
+	if err != nil {
+		return completedTurn{}, err
+	}
+	if err := events.emit(AgentTurnEndEvent{Message: response, ToolResults: toolResults}); err != nil {
+		return completedTurn{}, err
+	}
+	return completedTurn{response: response, toolResults: toolResults, continues: continues}, nil
+}
+
+func isErrorTerminal(reason StopReason) bool {
+	return reason == StopReasonError || reason == StopReasonAborted
 }
 
 func validateTurn(ctx context.Context, turn, maxTurns int) error {

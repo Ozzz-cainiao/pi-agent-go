@@ -27,16 +27,19 @@ type ConvertToLLMFunc func(context.Context, []AgentMessage) ([]Message, error)
 
 // LoopConfig 集中声明 Agent Loop 的依赖与安全限制。
 type LoopConfig struct {
-	Stream            StreamFunc
-	TransformContext  TransformContextFunc
-	ConvertToLLM      ConvertToLLMFunc
-	PrepareNextTurn   PrepareNextTurnFunc
-	ArgumentValidator ArgumentValidator
-	BeforeToolCall    BeforeToolCallFunc
-	AfterToolCall     AfterToolCallFunc
-	ToolExecution     ToolExecutionMode
-	Clock             Clock
-	MaxTurns          int
+	Stream              StreamFunc
+	TransformContext    TransformContextFunc
+	ConvertToLLM        ConvertToLLMFunc
+	PrepareNextTurn     PrepareNextTurnFunc
+	ArgumentValidator   ArgumentValidator
+	BeforeToolCall      BeforeToolCallFunc
+	AfterToolCall       AfterToolCallFunc
+	ShouldStopAfterTurn ShouldStopAfterTurnFunc
+	GetSteeringMessages GetQueuedMessagesFunc
+	GetFollowUpMessages GetQueuedMessagesFunc
+	ToolExecution       ToolExecutionMode
+	Clock               Clock
+	MaxTurns            int
 }
 
 // LoopConfigError 描述不合法的 Agent Loop 配置字段。
@@ -71,16 +74,19 @@ func (turnError *MaxTurnsError) Unwrap() error {
 }
 
 type loopRuntime struct {
-	stream            StreamFunc
-	transformContext  TransformContextFunc
-	convertToLLM      ConvertToLLMFunc
-	prepareNextTurn   PrepareNextTurnFunc
-	argumentValidator ArgumentValidator
-	beforeToolCall    BeforeToolCallFunc
-	afterToolCall     AfterToolCallFunc
-	toolExecution     ToolExecutionMode
-	clock             Clock
-	maxTurns          int
+	stream              StreamFunc
+	transformContext    TransformContextFunc
+	convertToLLM        ConvertToLLMFunc
+	prepareNextTurn     PrepareNextTurnFunc
+	argumentValidator   ArgumentValidator
+	beforeToolCall      BeforeToolCallFunc
+	afterToolCall       AfterToolCallFunc
+	shouldStopAfterTurn ShouldStopAfterTurnFunc
+	getSteeringMessages GetQueuedMessagesFunc
+	getFollowUpMessages GetQueuedMessagesFunc
+	toolExecution       ToolExecutionMode
+	clock               Clock
+	maxTurns            int
 }
 
 func (config LoopConfig) runtime() (loopRuntime, error) {
@@ -125,16 +131,19 @@ func (config LoopConfig) runtime() (loopRuntime, error) {
 	}
 
 	return loopRuntime{
-		stream:            config.Stream,
-		transformContext:  config.TransformContext,
-		convertToLLM:      convertToLLM,
-		prepareNextTurn:   config.PrepareNextTurn,
-		argumentValidator: argumentValidator,
-		beforeToolCall:    config.BeforeToolCall,
-		afterToolCall:     config.AfterToolCall,
-		toolExecution:     toolExecution,
-		clock:             clock,
-		maxTurns:          maxTurns,
+		stream:              config.Stream,
+		transformContext:    config.TransformContext,
+		convertToLLM:        convertToLLM,
+		prepareNextTurn:     config.PrepareNextTurn,
+		argumentValidator:   argumentValidator,
+		beforeToolCall:      config.BeforeToolCall,
+		afterToolCall:       config.AfterToolCall,
+		shouldStopAfterTurn: config.ShouldStopAfterTurn,
+		getSteeringMessages: config.GetSteeringMessages,
+		getFollowUpMessages: config.GetFollowUpMessages,
+		toolExecution:       toolExecution,
+		clock:               clock,
+		maxTurns:            maxTurns,
 	}, nil
 }
 
