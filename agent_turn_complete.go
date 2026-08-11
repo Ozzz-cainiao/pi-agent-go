@@ -24,8 +24,8 @@ func completeTurn(
 		return results, true, err
 	}
 
-	results, err := executeToolCalls(ctx, runtime, events, state, response, calls)
-	return results, true, err
+	results, terminate, err := executeToolCalls(ctx, runtime, events, state, response, calls)
+	return results, !terminate, err
 }
 
 func appendTruncatedResults(
@@ -53,28 +53,25 @@ func executeToolCalls(
 	state *loopState,
 	response AssistantMessage,
 	calls []ToolCall,
-) ([]ToolResultMessage, error) {
+) ([]ToolResultMessage, bool, error) {
 	results := make([]ToolResultMessage, 0, len(calls))
+	allTerminate := true
 	for _, call := range calls {
 		if err := ctx.Err(); err != nil {
-			return results, fmt.Errorf("execute tool call: %w", err)
+			return results, false, fmt.Errorf("execute tool call: %w", err)
 		}
 		if err := events.emit(AgentToolExecutionStartEvent{
 			ToolCallID: call.ID, ToolName: call.Name, Arguments: call.Arguments,
 		}); err != nil {
-			return results, err
+			return results, false, err
 		}
-		var updateError error
-		onUpdate := func(partial ToolResult) {
-			if updateError != nil {
-				return
-			}
-			updateError = events.emit(AgentToolExecutionUpdateEvent{
+		onUpdate := func(partial ToolResult) error {
+			return events.emit(AgentToolExecutionUpdateEvent{
 				ToolCallID: call.ID, ToolName: call.Name,
 				Arguments: call.Arguments, PartialResult: partial,
 			})
 		}
-		result := executeToolCall(
+		outcome, err := executeToolCall(
 			ctx,
 			call,
 			runtime.clock().UnixMilli(),
@@ -87,19 +84,20 @@ func executeToolCalls(
 				after:            runtime.afterToolCall,
 			},
 		)
-		if updateError != nil {
-			return results, updateError
+		if err != nil {
+			return results, false, err
 		}
-		appendToolResult(state, result)
-		if err := events.emit(toolExecutionEndEvent(result)); err != nil {
-			return results, err
+		appendToolResult(state, outcome.message)
+		if err := events.emit(toolExecutionEndEvent(outcome)); err != nil {
+			return results, false, err
 		}
-		if err := emitMessageLifecycle(events, result); err != nil {
-			return results, err
+		if err := emitMessageLifecycle(events, outcome.message); err != nil {
+			return results, false, err
 		}
-		results = append(results, result)
+		results = append(results, outcome.message)
+		allTerminate = allTerminate && outcome.terminate
 	}
-	return results, nil
+	return results, allTerminate, nil
 }
 
 func appendToolResult(state *loopState, result ToolResultMessage) {
@@ -114,14 +112,11 @@ func emitMessageLifecycle(events agentEventEmitter, message AgentMessage) error 
 	return events.emit(AgentMessageEndEvent{Message: message})
 }
 
-func toolExecutionEndEvent(message ToolResultMessage) AgentToolExecutionEndEvent {
+func toolExecutionEndEvent(outcome toolCallOutcome) AgentToolExecutionEndEvent {
 	return AgentToolExecutionEndEvent{
-		ToolCallID: message.ToolCallID,
-		ToolName:   message.ToolName,
-		Result: ToolResult{
-			Content: message.Content, Details: message.Details, Usage: message.Usage,
-			AddedToolNames: message.AddedToolNames,
-		},
-		IsError: message.IsError,
+		ToolCallID: outcome.message.ToolCallID,
+		ToolName:   outcome.message.ToolName,
+		Result:     outcome.result,
+		IsError:    outcome.isError,
 	}
 }

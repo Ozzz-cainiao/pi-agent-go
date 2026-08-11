@@ -10,29 +10,29 @@ func executeToolCall(
 	ctx context.Context,
 	call ToolCall,
 	timestamp int64,
-	onUpdate ToolUpdateFunc,
+	onUpdate toolUpdateSink,
 	options toolCallExecutionOptions,
-) ToolResultMessage {
+) (toolCallOutcome, error) {
 	tool, ok := findToolByName(options.context.Tools, call.Name)
 	if !ok {
 		result := newErrorToolResult(
 			"Tool " + call.Name + " not found",
 		)
 
-		return newToolResultMessage(call, result, true, timestamp)
+		return newToolCallOutcome(call, result, true, timestamp), nil
 	}
 	preparedCall, err := prepareToolCallArguments(tool, call)
 	if err != nil {
 		result := newErrorToolResult(
 			fmt.Sprintf("Tool %q argument preparation failed: %v", call.Name, err),
 		)
-		return newToolResultMessage(call, result, true, timestamp)
+		return newToolCallOutcome(call, result, true, timestamp), nil
 	}
 	if err := options.validator.Validate(ctx, tool.Definition(), preparedCall.Arguments); err != nil {
 		result := newErrorToolResult(
 			fmt.Sprintf("Tool %q arguments invalid: %v", call.Name, err),
 		)
-		return newToolResultMessage(call, result, true, timestamp)
+		return newToolCallOutcome(call, result, true, timestamp), nil
 	}
 	beforeResult, err := runBeforeToolCall(
 		ctx,
@@ -45,7 +45,7 @@ func executeToolCall(
 		result := newErrorToolResult(
 			fmt.Sprintf("Tool %q before hook failed: %v", call.Name, err),
 		)
-		return newToolResultMessage(call, result, true, timestamp)
+		return newToolCallOutcome(call, result, true, timestamp), nil
 	}
 	if beforeResult.Block {
 		reason := beforeResult.Reason
@@ -54,13 +54,14 @@ func executeToolCall(
 		}
 		result := newErrorToolResult(reason)
 		result.Terminate = beforeResult.Terminate
-		return newToolResultMessage(call, result, true, timestamp)
+		return newToolCallOutcome(call, result, true, timestamp), nil
 	}
 
-	if onUpdate == nil {
-		onUpdate = func(ToolResult) {}
+	updates := newToolUpdateGate(onUpdate)
+	result, err := tool.Execute(ctx, preparedCall, updates.update)
+	if updateError := updates.settle(); updateError != nil {
+		return toolCallOutcome{}, updateError
 	}
-	result, err := tool.Execute(ctx, preparedCall, onUpdate)
 	isError := false
 	if err != nil {
 		result = newErrorToolResult(err.Error())
@@ -69,7 +70,28 @@ func executeToolCall(
 	result, isError = runAfterToolCall(
 		ctx, options, call, preparedCall, result, isError,
 	)
-	return newToolResultMessage(call, result, isError, timestamp)
+	return newToolCallOutcome(call, result, isError, timestamp), nil
+}
+
+type toolCallOutcome struct {
+	message   ToolResultMessage
+	result    ToolResult
+	isError   bool
+	terminate bool
+}
+
+func newToolCallOutcome(
+	call ToolCall,
+	result ToolResult,
+	isError bool,
+	timestamp int64,
+) toolCallOutcome {
+	return toolCallOutcome{
+		message:   newToolResultMessage(call, result, isError, timestamp),
+		result:    result,
+		isError:   isError,
+		terminate: result.Terminate,
+	}
 }
 
 // newErrorToolResult 创建可返回给模型的错误工具结果。

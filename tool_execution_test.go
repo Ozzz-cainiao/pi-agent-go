@@ -18,16 +18,20 @@ func TestExecuteToolCall_returnsSuccessfulResultMessage(t *testing.T) {
 	}
 
 	// 执行
-	got := executeToolCall(
+	outcome, err := executeToolCall(
 		context.Background(),
 		call,
 		100,
-		func(ToolResult) {},
+		func(ToolResult) error { return nil },
 		toolCallExecutionOptions{
 			context:   AgentContext{Tools: []Tool{stubTool{}}},
 			validator: JSONSchemaArgumentValidator{},
 		},
 	)
+	if err != nil {
+		t.Fatalf("executeToolCall() returned error: %v", err)
+	}
+	got := outcome.message
 
 	// 验证
 	want := ToolResultMessage{
@@ -52,16 +56,20 @@ func TestExecuteToolCall_returnsErrorForMissingTool(t *testing.T) {
 	}
 
 	// 执行
-	got := executeToolCall(
+	outcome, err := executeToolCall(
 		context.Background(),
 		call,
 		200,
-		func(ToolResult) {},
+		func(ToolResult) error { return nil },
 		toolCallExecutionOptions{
 			context:   AgentContext{Tools: []Tool{stubTool{}}},
 			validator: JSONSchemaArgumentValidator{},
 		},
 	)
+	if err != nil {
+		t.Fatalf("executeToolCall() returned error: %v", err)
+	}
+	got := outcome.message
 
 	// 验证
 	if !got.IsError {
@@ -105,16 +113,20 @@ func TestExecuteToolCall_convertsToolErrorToResultMessage(t *testing.T) {
 	}
 
 	// 执行
-	got := executeToolCall(
+	outcome, err := executeToolCall(
 		context.Background(),
 		call,
 		300,
-		func(ToolResult) {},
+		func(ToolResult) error { return nil },
 		toolCallExecutionOptions{
 			context:   AgentContext{Tools: []Tool{failingTool{}}},
 			validator: JSONSchemaArgumentValidator{},
 		},
 	)
+	if err != nil {
+		t.Fatalf("executeToolCall() returned error: %v", err)
+	}
+	got := outcome.message
 
 	// 验证
 	if !got.IsError {
