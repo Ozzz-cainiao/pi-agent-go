@@ -15,31 +15,7 @@ func TestProviderStream_sendsResponsesRequest(t *testing.T) {
 	t.Parallel()
 
 	requestReceived := make(chan requestBody, 1)
-	server := httptest.NewServer(http.HandlerFunc(func(
-		writer http.ResponseWriter,
-		request *http.Request,
-	) {
-		if request.URL.Path != "/responses" {
-			t.Errorf("request path = %q, want /responses", request.URL.Path)
-		}
-		if got := request.Header.Get("Authorization"); got != "Bearer test-key" {
-			t.Errorf("Authorization = %q, want Bearer test-key", got)
-		}
-
-		var body requestBody
-		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
-			t.Errorf("decode request body: %v", err)
-			return
-		}
-		requestReceived <- body
-
-		writer.Header().Set("Content-Type", "text/event-stream")
-		_, _ = writer.Write([]byte(
-			"event: response.completed\n" +
-				`data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-test","status":"completed","output":[],"usage":{"input_tokens":3,"output_tokens":2,"total_tokens":5}}}` +
-				"\n\n",
-		))
-	}))
+	server := httptest.NewServer(newSuccessfulResponseHandler(t, requestReceived))
 	defer server.Close()
 
 	provider, err := New(Config{
@@ -64,7 +40,45 @@ func TestProviderStream_sendsResponsesRequest(t *testing.T) {
 		t.Fatalf("Stream() returned error: %v", err)
 	}
 
-	body := <-requestReceived
+	assertRequestBody(t, <-requestReceived)
+	assertAssistantMessage(t, message)
+}
+
+func newSuccessfulResponseHandler(
+	t *testing.T,
+	requestReceived chan<- requestBody,
+) http.Handler {
+	t.Helper()
+
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/responses" {
+			t.Errorf("request path = %q, want /responses", request.URL.Path)
+		}
+		if got := request.Header.Get("Authorization"); got != "Bearer test-key" {
+			t.Errorf("Authorization = %q, want Bearer test-key", got)
+		}
+
+		var body requestBody
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Errorf("decode request body: %v", err)
+			return
+		}
+		requestReceived <- body
+
+		writer.Header().Set("Content-Type", "text/event-stream")
+		if _, err := writer.Write([]byte(
+			"event: response.completed\n" +
+				`data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-test","status":"completed","output":[],"usage":{"input_tokens":3,"output_tokens":2,"total_tokens":5}}}` +
+				"\n\n",
+		)); err != nil {
+			t.Errorf("write response: %v", err)
+		}
+	})
+}
+
+func assertRequestBody(t *testing.T, body requestBody) {
+	t.Helper()
+
 	if body.Model != "gpt-test" || !body.Stream {
 		t.Fatalf("request model/stream = %q/%v, want gpt-test/true", body.Model, body.Stream)
 	}
@@ -80,6 +94,11 @@ func TestProviderStream_sendsResponsesRequest(t *testing.T) {
 	if len(body.Tools) != 1 || body.Tools[0].Name != "search" {
 		t.Fatalf("tools = %#v, want search", body.Tools)
 	}
+}
+
+func assertAssistantMessage(t *testing.T, message agent.AssistantMessage) {
+	t.Helper()
+
 	if message.ResponseID != "resp_1" || message.Model != "gpt-test" {
 		t.Errorf("response identity = %q/%q", message.ResponseID, message.Model)
 	}
@@ -99,7 +118,9 @@ func TestProviderStream_returnsTypedAPIError(t *testing.T) {
 		_ *http.Request,
 	) {
 		writer.WriteHeader(http.StatusUnauthorized)
-		_, _ = writer.Write([]byte(`{"error":{"message":"invalid api key"}}`))
+		if _, err := writer.Write([]byte(`{"error":{"message":"invalid api key"}}`)); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	}))
 	defer server.Close()
 

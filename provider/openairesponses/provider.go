@@ -44,7 +44,7 @@ func New(config Config) (*Provider, error) {
 		return nil, fmt.Errorf("APIKey is required: %w", ErrInvalidConfig)
 	}
 	if strings.TrimSpace(config.Model) == "" {
-		return nil, fmt.Errorf("Model is required: %w", ErrInvalidConfig)
+		return nil, fmt.Errorf("model is required: %w", ErrInvalidConfig)
 	}
 
 	baseURL := strings.TrimRight(strings.TrimSpace(config.BaseURL), "/")
@@ -84,7 +84,11 @@ func (provider *Provider) Stream(
 	if err != nil {
 		return agent.AssistantMessage{}, fmt.Errorf("send request: %w", err)
 	}
-	defer response.Body.Close()
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			return
+		}
+	}()
 
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return agent.AssistantMessage{}, decodeAPIError(response)

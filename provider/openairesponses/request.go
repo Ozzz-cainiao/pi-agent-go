@@ -135,7 +135,10 @@ func convertAssistantMessage(message agent.AssistantMessage) []requestInputItem 
 				Content: []requestContent{{Type: "output_text", Text: value.Text}},
 			})
 		case agent.ToolCall:
-			arguments, _ := json.Marshal(value.Arguments)
+			arguments, err := json.Marshal(value.Arguments)
+			if err != nil {
+				arguments = nil
+			}
 			items = append(items, requestInputItem{
 				Type:      "function_call",
 				CallID:    value.ID,

@@ -43,6 +43,7 @@ func RunAgentLoop(
 		toolCalls := toolCallsFrom(response)
 
 		switch response.StopReason {
+		case StopReasonPending, StopReasonStop, StopReasonToolUse, StopReasonDeferred:
 		case StopReasonError, StopReasonAborted:
 			return newMessages, nil
 
