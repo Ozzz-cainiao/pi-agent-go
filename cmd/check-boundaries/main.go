@@ -1,3 +1,4 @@
+// Package main 提供可由质量门调用的仓库边界检查命令。
 package main
 
 import (

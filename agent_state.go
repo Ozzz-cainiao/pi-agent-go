@@ -12,13 +12,20 @@ const UnknownModelID ModelID = "unknown"
 type ThinkingLevel string
 
 const (
-	ThinkingLevelOff     ThinkingLevel = "off"
+	// ThinkingLevelOff 关闭额外推理。
+	ThinkingLevelOff ThinkingLevel = "off"
+	// ThinkingLevelMinimal 请求最少量推理。
 	ThinkingLevelMinimal ThinkingLevel = "minimal"
-	ThinkingLevelLow     ThinkingLevel = "low"
-	ThinkingLevelMedium  ThinkingLevel = "medium"
-	ThinkingLevelHigh    ThinkingLevel = "high"
-	ThinkingLevelXHigh   ThinkingLevel = "xhigh"
-	ThinkingLevelMax     ThinkingLevel = "max"
+	// ThinkingLevelLow 请求低强度推理。
+	ThinkingLevelLow ThinkingLevel = "low"
+	// ThinkingLevelMedium 请求中等强度推理。
+	ThinkingLevelMedium ThinkingLevel = "medium"
+	// ThinkingLevelHigh 请求高强度推理。
+	ThinkingLevelHigh ThinkingLevel = "high"
+	// ThinkingLevelXHigh 请求超高强度推理。
+	ThinkingLevelXHigh ThinkingLevel = "xhigh"
+	// ThinkingLevelMax 请求当前实现允许的最大推理强度。
+	ThinkingLevelMax ThinkingLevel = "max"
 )
 
 // AgentState 是高层 Agent 当前状态的只读快照。

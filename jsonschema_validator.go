@@ -16,6 +16,7 @@ const toolArgumentsSchemaURL = "tool-arguments-schema.json"
 // JSONSchemaArgumentValidator 使用 JSON Schema Draft 2020-12 校验参数。
 type JSONSchemaArgumentValidator struct{}
 
+// Validate 按工具定义中的 JSON Schema 校验参数。
 func (JSONSchemaArgumentValidator) Validate(
 	ctx context.Context,
 	definition ToolDefinition,

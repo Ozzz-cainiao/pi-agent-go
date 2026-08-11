@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// ErrAgentEventSink 表示生命周期事件无法交付或创建安全快照。
 var ErrAgentEventSink = errors.New("agent: event sink failed")
 
 // AgentEventSinkError 描述事件快照或消费者处理失败。

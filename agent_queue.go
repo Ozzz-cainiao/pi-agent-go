@@ -10,10 +10,13 @@ import (
 type QueueMode string
 
 const (
-	QueueModeAll        QueueMode = "all"
+	// QueueModeAll 在一次 drain 中取出全部排队消息。
+	QueueModeAll QueueMode = "all"
+	// QueueModeOneAtATime 在一次 drain 中只取出最早的一条消息。
 	QueueModeOneAtATime QueueMode = "one-at-a-time"
 )
 
+// ErrInvalidQueueMode 表示队列消费模式无法识别。
 var ErrInvalidQueueMode = errors.New("agent: invalid queue mode")
 
 type agentQueueKind uint8

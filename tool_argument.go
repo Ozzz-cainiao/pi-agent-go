@@ -10,6 +10,7 @@ type ArgumentValidator interface {
 // ArgumentValidatorFunc 将函数适配为 ArgumentValidator。
 type ArgumentValidatorFunc func(context.Context, ToolDefinition, map[string]any) error
 
+// Validate 调用被适配的参数校验函数。
 func (validator ArgumentValidatorFunc) Validate(
 	ctx context.Context,
 	definition ToolDefinition,

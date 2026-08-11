@@ -11,7 +11,7 @@ import (
 var errParallelTool = errors.New("parallel tool failed")
 
 func TestRunAgentLoop_parallelEndUsesCompletionOrderButMessagesUseSourceOrder(t *testing.T) {
-	for iteration := range 1 {
+	for iteration := range 100 {
 		firstStarted := make(chan struct{})
 		secondStarted := make(chan struct{})
 		firstRelease := make(chan struct{})

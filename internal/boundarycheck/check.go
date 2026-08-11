@@ -1,3 +1,4 @@
+// Package boundarycheck 检查 Core 依赖方向和 Go 文件规模。
 package boundarycheck
 
 import (
@@ -10,11 +11,13 @@ import (
 	"strings"
 )
 
-var (
-	ErrProviderDependency = errors.New("core 根包依赖 Provider")
-	ErrFileTooLarge       = errors.New("go 文件超过纯代码行限制")
-)
+// ErrProviderDependency 表示 Core 根包的依赖闭包包含 Provider adapter。
+var ErrProviderDependency = errors.New("core 根包依赖 Provider")
 
+// ErrFileTooLarge 表示非生成 Go 文件超过 pure LOC 上限。
+var ErrFileTooLarge = errors.New("go 文件超过纯代码行限制")
+
+// ViolationError 描述一条可定位、可分类的仓库边界违规。
 type ViolationError struct {
 	Kind   error
 	Path   string
@@ -33,6 +36,7 @@ func (err *ViolationError) Unwrap() error {
 	return err.Kind
 }
 
+// CheckDependencies 检查 Core 依赖列表中是否包含当前 module 的 Provider。
 func CheckDependencies(module string, dependencies []string) error {
 	providerRoot := strings.TrimSuffix(module, "/") + "/provider"
 	for _, dependency := range dependencies {
@@ -43,6 +47,7 @@ func CheckDependencies(module string, dependencies []string) error {
 	return nil
 }
 
+// CheckFileSizes 检查仓库中每个非生成 Go 文件的 pure LOC。
 func CheckFileSizes(root string, limit int) error {
 	source := os.DirFS(root)
 	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {

@@ -36,6 +36,7 @@ const (
 	agentStateSetSteeringMode
 	agentStateSetFollowUpMode
 	agentStateHasQueuedMessages
+	agentStateBeginClose
 	agentStateClose
 )
 
@@ -73,6 +74,7 @@ type agentOwnedState struct {
 	active           *agentActiveRun
 	steeringQueue    pendingMessageQueue
 	followUpQueue    pendingMessageQueue
+	closing          bool
 }
 
 // Agent 通过单一 owner goroutine 串行管理高层状态。
@@ -134,6 +136,7 @@ func (agent *Agent) SetTools(tools []Tool) error {
 	return err
 }
 
+// ReplaceMessages 使用输入消息的深层副本替换 transcript。
 func (agent *Agent) ReplaceMessages(messages []AgentMessage) error {
 	cloned, err := cloneAgentMessages(messages)
 	if err != nil {
@@ -162,6 +165,14 @@ func (agent *Agent) ClearMessages() error {
 // Close 停止 owner goroutine；重复调用是安全的。
 func (agent *Agent) Close() error {
 	agent.closeOnce.Do(func() {
+		reply, err := agent.execute(agentStateCommand{operation: agentStateBeginClose})
+		if err != nil {
+			agent.closeError = err
+			return
+		}
+		if reply.idle != nil {
+			<-reply.idle
+		}
 		_, agent.closeError = agent.execute(agentStateCommand{operation: agentStateClose})
 	})
 	return agent.closeError
@@ -185,6 +196,10 @@ func (agent *Agent) ownState(state AgentState, queues agentQueues) {
 	}
 	for {
 		command := <-agent.commands
+		if owned.closing && !allowedWhileClosing(command.operation) {
+			command.reply <- agentStateReply{err: ErrAgentClosed}
+			continue
+		}
 		reply, stop := applyAgentStateCommand(&owned, command)
 		command.reply <- reply
 		if stop {
@@ -229,8 +244,22 @@ func applyAgentStateCommand(owned *agentOwnedState, command agentStateCommand) (
 		agentStateSetFollowUpMode,
 		agentStateHasQueuedMessages:
 		return applyAgentQueueCommand(owned, command), false
+	case agentStateBeginClose:
+		owned.closing = true
+		if owned.active != nil {
+			owned.active.cancel()
+			return agentStateReply{idle: owned.active.done}, false
+		}
+		return agentStateReply{}, false
 	case agentStateClose:
 		return agentStateReply{}, true
 	}
 	return agentStateReply{}, false
+}
+
+func allowedWhileClosing(operation agentStateOperation) bool {
+	return operation == agentStateProcessEvent ||
+		operation == agentStateFinishRun ||
+		operation == agentStateCurrentIdle ||
+		operation == agentStateClose
 }

@@ -47,13 +47,13 @@ func (cloner *snapshotCloner) cloneUserMessage(message UserMessage) (UserMessage
 		switch value := content.(type) {
 		case *TextContent:
 			if value != nil {
-				copy := *value
-				cloned.Content[index] = &copy
+				copied := *value
+				cloned.Content[index] = &copied
 			}
 		case *ImageContent:
 			if value != nil {
-				copy := *value
-				cloned.Content[index] = &copy
+				copied := *value
+				cloned.Content[index] = &copied
 			}
 		default:
 			cloned.Content[index] = content
@@ -98,13 +98,13 @@ func cloneToolResultContent(content []ToolResultContent) []ToolResultContent {
 		switch value := item.(type) {
 		case *TextContent:
 			if value != nil {
-				copy := *value
-				cloned[index] = &copy
+				copied := *value
+				cloned[index] = &copied
 			}
 		case *ImageContent:
 			if value != nil {
-				copy := *value
-				cloned[index] = &copy
+				copied := *value
+				cloned[index] = &copied
 			}
 		default:
 			cloned[index] = item

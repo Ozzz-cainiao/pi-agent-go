@@ -27,6 +27,7 @@ linters:
     - nilerr
     - nilnil
     - prealloc
+    - revive
     - staticcheck
     - testifylint
     - unconvert
@@ -53,6 +54,11 @@ linters:
       min-complexity: 15
     nestif:
       min-complexity: 4
+    revive:
+      rules:
+        - name: exported
+          arguments:
+            - disableStutteringCheck
 
   exclusions:
     rules:
