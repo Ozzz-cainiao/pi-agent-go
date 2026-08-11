@@ -137,11 +137,6 @@ func TestRunAgentLoop_forwardsAssistantEvents(t *testing.T) {
 	}
 
 	wantEvents := []AssistantMessageEvent{
-		AssistantStartEvent{
-			Partial: AssistantMessage{
-				StopReason: StopReasonPending,
-			},
-		},
 		AssistantTextDeltaEvent{
 			ContentIndex: 0,
 			Delta:        "模",
@@ -164,8 +159,11 @@ func TestRunAgentLoop_forwardsAssistantEvents(t *testing.T) {
 	})
 
 	var gotEvents []AssistantMessageEvent
-	emit := AssistantMessageEventSink(func(event AssistantMessageEvent) error {
-		gotEvents = append(gotEvents, event)
+	emit := AgentEventSink(func(event AgentEvent) error {
+		update, ok := event.(AgentMessageUpdateEvent)
+		if ok {
+			gotEvents = append(gotEvents, update.AssistantEvent)
+		}
 
 		return nil
 	})

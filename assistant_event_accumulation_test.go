@@ -11,8 +11,12 @@ func TestRunAgentLoop_preservesAccumulatedDeltaSnapshots(t *testing.T) {
 	var textSnapshots []string
 	var thinkingSnapshots []string
 	var toolArgumentSnapshots []map[string]any
-	sink := AssistantMessageEventSink(func(event AssistantMessageEvent) error {
-		switch value := event.(type) {
+	sink := AgentEventSink(func(event AgentEvent) error {
+		update, ok := event.(AgentMessageUpdateEvent)
+		if !ok {
+			return nil
+		}
+		switch value := update.AssistantEvent.(type) {
 		case AssistantTextDeltaEvent:
 			content := contentAt[TextContent](t, value.Partial, value.ContentIndex)
 			textSnapshots = append(textSnapshots, content.Text)

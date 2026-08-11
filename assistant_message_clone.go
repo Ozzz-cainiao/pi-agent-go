@@ -69,6 +69,9 @@ func (cloner *snapshotCloner) cloneAssistantContent(
 }
 
 func (cloner *snapshotCloner) cloneToolCall(call ToolCall) (ToolCall, error) {
+	if call.Arguments == nil {
+		return call, nil
+	}
 	clonedArguments, err := cloner.cloneValue(
 		reflect.ValueOf(call.Arguments),
 		"ToolCall.Arguments",

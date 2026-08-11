@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 )
@@ -12,89 +13,22 @@ func RunAgentLoop(
 	prompts []AgentMessage,
 	initial AgentContext,
 	config LoopConfig,
-	emit AssistantMessageEventSink,
-) ([]AgentMessage, error) {
+	sink AgentEventSink,
+) (messages []AgentMessage, runError error) {
 	newMessages := slices.Clone(prompts)
-	current := initial.WithMessages(prompts...)
-	runtime, err := config.runtime()
-	if err != nil {
-		return newMessages, fmt.Errorf("run agent loop: %w", err)
+	events := newAgentEventEmitter(sink)
+	if err := events.emit(AgentStartEvent{}); err != nil {
+		return newMessages, err
 	}
 
-	emit = assistantMessageEventSinkOrDiscard(emit)
-
-	for turn := 0; ; turn++ {
-		if err := ctx.Err(); err != nil {
-			return newMessages, fmt.Errorf("run agent loop: %w", err)
-		}
-		if turn >= runtime.maxTurns {
-			return newMessages, &MaxTurnsError{MaxTurns: runtime.maxTurns}
-		}
-
-		modelContext, err := current.toLLM(ctx, runtime.convertToLLM)
-		if err != nil {
-			return newMessages, fmt.Errorf("convert messages to llm: %w", err)
-		}
-
-		response, err := runtime.stream(ctx, modelContext, emit)
-		if err != nil {
-			return newMessages, fmt.Errorf(
-				"stream assistant response: %w",
-				err,
-			)
-		}
-
-		newMessages = append(newMessages, response)
-		current = current.WithMessages(response)
-
-		toolCalls := toolCallsFrom(response)
-
-		switch response.StopReason {
-		case StopReasonPending, StopReasonStop, StopReasonToolUse, StopReasonDeferred:
-		case StopReasonError, StopReasonAborted:
-			return newMessages, nil
-
-		case StopReasonLength:
-			if len(toolCalls) == 0 {
-				return newMessages, nil
-			}
-
-			for _, call := range toolCalls {
-				result := newTruncatedToolResultMessage(
-					call,
-					runtime.clock().UnixMilli(),
-				)
-
-				newMessages = append(newMessages, result)
-				current = current.WithMessages(result)
-			}
-
-			continue
-		}
-
-		if len(toolCalls) == 0 {
-			return newMessages, nil
-		}
-
-		for _, call := range toolCalls {
-			if err := ctx.Err(); err != nil {
-				return newMessages, fmt.Errorf(
-					"execute tool call: %w",
-					err,
-				)
-			}
-
-			result := executeToolCall(
-				ctx,
-				current.Tools,
-				call,
-				runtime.clock().UnixMilli(),
-			)
-
-			newMessages = append(newMessages, result)
-			current = current.WithMessages(result)
-		}
+	state := loopState{
+		current:  initial.WithMessages(prompts...),
+		messages: newMessages,
 	}
+	runError = runAgentTurns(ctx, prompts, config, events, &state)
+	endError := events.emit(AgentEndEvent{Messages: state.messages})
+
+	return state.messages, errors.Join(runError, endError)
 }
 
 // toolCallsFrom 提取 AssistantMessage 中的全部工具调用。

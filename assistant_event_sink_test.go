@@ -24,10 +24,12 @@ func TestRunAgentLoop_stopsImmediatelyWhenAssistantEventSinkFails(t *testing.T) 
 
 		return AssistantMessage{StopReason: StopReasonStop}, nil
 	})
-	sinkCalls := 0
-	sink := AssistantMessageEventSink(func(AssistantMessageEvent) error {
-		sinkCalls++
-
+	failingSinkCalls := 0
+	sink := AgentEventSink(func(event AgentEvent) error {
+		if event.Kind() != AgentEventMessageStart {
+			return nil
+		}
+		failingSinkCalls++
 		return sinkError
 	})
 
@@ -42,10 +44,13 @@ func TestRunAgentLoop_stopsImmediatelyWhenAssistantEventSinkFails(t *testing.T) 
 	if !errors.Is(err, sinkError) {
 		t.Fatalf("RunAgentLoop() error = %v, want sink error", err)
 	}
+	if !errors.Is(err, ErrAgentEventSink) {
+		t.Fatalf("RunAgentLoop() error = %v, want ErrAgentEventSink", err)
+	}
 	if emittedAfterFailure {
 		t.Fatal("StreamFunc continued after AssistantMessageEventSink failure")
 	}
-	if sinkCalls != 1 {
-		t.Fatalf("sink call count = %d, want 1", sinkCalls)
+	if failingSinkCalls != 1 {
+		t.Fatalf("failing sink call count = %d, want 1", failingSinkCalls)
 	}
 }
