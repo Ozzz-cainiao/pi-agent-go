@@ -8,13 +8,12 @@ import (
 // executeToolCall 执行一次工具调用，并将结果转换为标准消息。
 func executeToolCall(
 	ctx context.Context,
-	tools []Tool,
 	call ToolCall,
 	timestamp int64,
 	onUpdate ToolUpdateFunc,
-	validator ArgumentValidator,
+	options toolCallExecutionOptions,
 ) ToolResultMessage {
-	tool, ok := findToolByName(tools, call.Name)
+	tool, ok := findToolByName(options.context.Tools, call.Name)
 	if !ok {
 		result := newErrorToolResult(
 			"Tool " + call.Name + " not found",
@@ -29,10 +28,32 @@ func executeToolCall(
 		)
 		return newToolResultMessage(call, result, true, timestamp)
 	}
-	if err := validator.Validate(ctx, tool.Definition(), preparedCall.Arguments); err != nil {
+	if err := options.validator.Validate(ctx, tool.Definition(), preparedCall.Arguments); err != nil {
 		result := newErrorToolResult(
 			fmt.Sprintf("Tool %q arguments invalid: %v", call.Name, err),
 		)
+		return newToolResultMessage(call, result, true, timestamp)
+	}
+	beforeResult, err := runBeforeToolCall(
+		ctx,
+		options.before,
+		options,
+		call,
+		&preparedCall,
+	)
+	if err != nil {
+		result := newErrorToolResult(
+			fmt.Sprintf("Tool %q before hook failed: %v", call.Name, err),
+		)
+		return newToolResultMessage(call, result, true, timestamp)
+	}
+	if beforeResult.Block {
+		reason := beforeResult.Reason
+		if reason == "" {
+			reason = "Tool execution was blocked"
+		}
+		result := newErrorToolResult(reason)
+		result.Terminate = beforeResult.Terminate
 		return newToolResultMessage(call, result, true, timestamp)
 	}
 
@@ -40,13 +61,15 @@ func executeToolCall(
 		onUpdate = func(ToolResult) {}
 	}
 	result, err := tool.Execute(ctx, preparedCall, onUpdate)
+	isError := false
 	if err != nil {
 		result = newErrorToolResult(err.Error())
-
-		return newToolResultMessage(call, result, true, timestamp)
+		isError = true
 	}
-
-	return newToolResultMessage(call, result, false, timestamp)
+	result, isError = runAfterToolCall(
+		ctx, options, call, preparedCall, result, isError,
+	)
+	return newToolResultMessage(call, result, isError, timestamp)
 }
 
 // newErrorToolResult 创建可返回给模型的错误工具结果。

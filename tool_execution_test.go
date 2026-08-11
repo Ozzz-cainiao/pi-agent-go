@@ -20,11 +20,13 @@ func TestExecuteToolCall_returnsSuccessfulResultMessage(t *testing.T) {
 	// 执行
 	got := executeToolCall(
 		context.Background(),
-		[]Tool{stubTool{}},
 		call,
 		100,
 		func(ToolResult) {},
-		JSONSchemaArgumentValidator{},
+		toolCallExecutionOptions{
+			context:   AgentContext{Tools: []Tool{stubTool{}}},
+			validator: JSONSchemaArgumentValidator{},
+		},
 	)
 
 	// 验证
@@ -52,11 +54,13 @@ func TestExecuteToolCall_returnsErrorForMissingTool(t *testing.T) {
 	// 执行
 	got := executeToolCall(
 		context.Background(),
-		[]Tool{stubTool{}},
 		call,
 		200,
 		func(ToolResult) {},
-		JSONSchemaArgumentValidator{},
+		toolCallExecutionOptions{
+			context:   AgentContext{Tools: []Tool{stubTool{}}},
+			validator: JSONSchemaArgumentValidator{},
+		},
 	)
 
 	// 验证
@@ -103,11 +107,13 @@ func TestExecuteToolCall_convertsToolErrorToResultMessage(t *testing.T) {
 	// 执行
 	got := executeToolCall(
 		context.Background(),
-		[]Tool{failingTool{}},
 		call,
 		300,
 		func(ToolResult) {},
-		JSONSchemaArgumentValidator{},
+		toolCallExecutionOptions{
+			context:   AgentContext{Tools: []Tool{failingTool{}}},
+			validator: JSONSchemaArgumentValidator{},
+		},
 	)
 
 	// 验证

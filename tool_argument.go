@@ -24,13 +24,14 @@ type ToolArgumentPreparer interface {
 }
 
 func prepareToolCallArguments(tool Tool, call ToolCall) (ToolCall, error) {
-	preparer, ok := tool.(ToolArgumentPreparer)
-	if !ok {
-		return call, nil
-	}
 	arguments, err := cloneArguments(call.Arguments)
 	if err != nil {
 		return ToolCall{}, err
+	}
+	call.Arguments = arguments
+	preparer, ok := tool.(ToolArgumentPreparer)
+	if !ok {
+		return call, nil
 	}
 	prepared, err := preparer.PrepareArguments(arguments)
 	if err != nil {

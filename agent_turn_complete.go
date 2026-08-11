@@ -24,7 +24,7 @@ func completeTurn(
 		return results, true, err
 	}
 
-	results, err := executeToolCalls(ctx, runtime, events, state, calls)
+	results, err := executeToolCalls(ctx, runtime, events, state, response, calls)
 	return results, true, err
 }
 
@@ -51,6 +51,7 @@ func executeToolCalls(
 	runtime loopRuntime,
 	events agentEventEmitter,
 	state *loopState,
+	response AssistantMessage,
 	calls []ToolCall,
 ) ([]ToolResultMessage, error) {
 	results := make([]ToolResultMessage, 0, len(calls))
@@ -75,11 +76,16 @@ func executeToolCalls(
 		}
 		result := executeToolCall(
 			ctx,
-			state.current.Tools,
 			call,
 			runtime.clock().UnixMilli(),
 			onUpdate,
-			runtime.argumentValidator,
+			toolCallExecutionOptions{
+				assistantMessage: response,
+				context:          state.current,
+				validator:        runtime.argumentValidator,
+				before:           runtime.beforeToolCall,
+				after:            runtime.afterToolCall,
+			},
 		)
 		if updateError != nil {
 			return results, updateError

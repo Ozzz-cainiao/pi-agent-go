@@ -32,6 +32,8 @@ type LoopConfig struct {
 	ConvertToLLM      ConvertToLLMFunc
 	PrepareNextTurn   PrepareNextTurnFunc
 	ArgumentValidator ArgumentValidator
+	BeforeToolCall    BeforeToolCallFunc
+	AfterToolCall     AfterToolCallFunc
 	Clock             Clock
 	MaxTurns          int
 }
@@ -73,6 +75,8 @@ type loopRuntime struct {
 	convertToLLM      ConvertToLLMFunc
 	prepareNextTurn   PrepareNextTurnFunc
 	argumentValidator ArgumentValidator
+	beforeToolCall    BeforeToolCallFunc
+	afterToolCall     AfterToolCallFunc
 	clock             Clock
 	maxTurns          int
 }
@@ -114,6 +118,8 @@ func (config LoopConfig) runtime() (loopRuntime, error) {
 		convertToLLM:      convertToLLM,
 		prepareNextTurn:   config.PrepareNextTurn,
 		argumentValidator: argumentValidator,
+		beforeToolCall:    config.BeforeToolCall,
+		afterToolCall:     config.AfterToolCall,
 		clock:             clock,
 		maxTurns:          maxTurns,
 	}, nil
