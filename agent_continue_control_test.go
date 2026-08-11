@@ -70,7 +70,10 @@ func TestAgent_failedContinueRestoresIdleState(t *testing.T) {
 		t.Fatalf("Continue() error = %v, want ErrEmptyContinuationContext", err)
 	}
 	state, stateError := agent.State()
-	if stateError != nil || state.IsStreaming || len(state.Messages) != 0 {
+	if stateError != nil || state.IsStreaming || len(state.Messages) != 1 {
 		t.Fatalf("state after failed Continue = %#v/%v", state, stateError)
+	}
+	if tail := assistantMessageAt(t, state.Messages, 0); tail.StopReason != StopReasonError {
+		t.Fatalf("failed Continue tail = %#v, want error", tail)
 	}
 }

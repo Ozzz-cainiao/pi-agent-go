@@ -43,8 +43,11 @@ func TestAgent_busyOperationsDoNotModifyTranscript(t *testing.T) {
 	if err != nil {
 		t.Fatalf("State() returned error: %v", err)
 	}
-	if state.IsStreaming || len(state.Messages) != 1 || userTextAt(t, state.Messages, 0).Text != "first" {
+	if state.IsStreaming || len(state.Messages) != 2 || userTextAt(t, state.Messages, 0).Text != "first" {
 		t.Fatalf("state after rejected operations = %#v", state)
+	}
+	if tail := assistantMessageAt(t, state.Messages, 1); tail.StopReason != StopReasonAborted {
+		t.Fatalf("state tail = %#v, want aborted failure", tail)
 	}
 }
 

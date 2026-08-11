@@ -107,10 +107,7 @@ func (config LoopConfig) runtime() (loopRuntime, error) {
 	if maxTurns == 0 {
 		maxTurns = DefaultMaxTurns
 	}
-	clock := config.Clock
-	if clock == nil {
-		clock = Clock(time.Now)
-	}
+	clock := resolvedClock(config.Clock)
 	convertToLLM := config.ConvertToLLM
 	if convertToLLM == nil {
 		convertToLLM = defaultConvertToLLM
@@ -145,6 +142,13 @@ func (config LoopConfig) runtime() (loopRuntime, error) {
 		clock:               clock,
 		maxTurns:            maxTurns,
 	}, nil
+}
+
+func resolvedClock(clock Clock) Clock {
+	if clock == nil {
+		return Clock(time.Now)
+	}
+	return clock
 }
 
 func defaultConvertToLLM(

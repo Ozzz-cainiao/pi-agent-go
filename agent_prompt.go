@@ -116,17 +116,17 @@ func (agent *Agent) executeRun(
 		return err
 	}
 	subscriberErrors := make([]error, 0)
+	dispatcher := agentRunEventDispatcher{
+		agent: agent, ctx: runContext, failures: &subscriberErrors,
+	}
 	defer func() {
 		_, finishError := agent.execute(agentStateCommand{operation: agentStateFinishRun})
 		cancel()
 		result = errors.Join(result, errors.Join(subscriberErrors...), finishError)
 	}()
-	sink := func(event AgentEvent) error {
-		failures, dispatchError := agent.dispatchEvent(runContext, event)
-		subscriberErrors = append(subscriberErrors, failures...)
-		return dispatchError
-	}
-	return executor(runContext, reply.state, sink)
+	runError := executor(runContext, reply.state, dispatcher.handle)
+	lifecycleError := dispatcher.complete(runError, reply.state.Model)
+	return errors.Join(runError, lifecycleError)
 }
 
 func agentContextFromState(state AgentState) AgentContext {
