@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "name": "one_at_a_time_steering_queue",
+  "upstream_case": "agent.test.ts: continue() should keep one-at-a-time steering semantics from assistant tail",
+  "scenario": "queue",
+  "input": {
+    "history": [{"role": "assistant", "text": "初始回答"}],
+    "queued": ["first", "second"]
+  },
+  "script": [
+    {"text": "处理 first", "stop_reason": "stop"},
+    {"text": "处理 second", "stop_reason": "stop"}
+  ],
+  "expected": {
+    "events": ["agent_start", "turn_start", "message_start", "message_end", "message_start", "message_end", "turn_end", "turn_start", "message_start", "message_end", "message_start", "message_end", "turn_end", "agent_end"],
+    "messages": [
+      {"role": "assistant", "text": "初始回答"},
+      {"role": "user", "text": "first"},
+      {"role": "assistant", "text": "处理 first"},
+      {"role": "user", "text": "second"},
+      {"role": "assistant", "text": "处理 second"}
+    ],
+    "stop_reason": "stop"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "name": "simple_prompt",
+  "upstream_case": "agent-loop.test.ts: should emit events with AgentMessage types",
+  "scenario": "simple",
+  "input": {"prompt": "你好"},
+  "script": [{"text": "你好，我是 Agent。", "stop_reason": "stop"}],
+  "expected": {
+    "events": ["agent_start", "turn_start", "message_start", "message_end", "message_start", "message_end", "turn_end", "agent_end"],
+    "messages": [
+      {"role": "user", "text": "你好"},
+      {"role": "assistant", "text": "你好，我是 Agent。"}
+    ],
+    "stop_reason": "stop"
+  }
+}

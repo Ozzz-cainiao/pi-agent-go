@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "name": "parallel_tool_batch",
+  "upstream_case": "agent-loop.test.ts: should allow parallel execution when all tools have executionMode=parallel",
+  "scenario": "parallel",
+  "input": {"prompt": "并行查询", "tool_results": {"first": "一", "second": "二"}},
+  "script": [
+    {"stop_reason": "toolUse", "tool_calls": [
+      {"id": "call-1", "name": "first", "arguments": {}},
+      {"id": "call-2", "name": "second", "arguments": {}}
+    ]},
+    {"text": "并行完成", "stop_reason": "stop"}
+  ],
+  "expected": {
+    "events": ["agent_start", "turn_start", "message_start", "message_end", "message_start", "message_end", "tool_execution_start", "tool_execution_start", "tool_execution_end", "tool_execution_end", "message_start", "message_end", "message_start", "message_end", "turn_end", "turn_start", "message_start", "message_end", "turn_end", "agent_end"],
+    "messages": [
+      {"role": "user", "text": "并行查询"},
+      {"role": "assistant", "tool_calls": [
+        {"id": "call-1", "name": "first", "arguments": {}},
+        {"id": "call-2", "name": "second", "arguments": {}}
+      ]},
+      {"role": "tool", "text": "一", "tool_name": "first", "tool_call_id": "call-1"},
+      {"role": "tool", "text": "二", "tool_name": "second", "tool_call_id": "call-2"},
+      {"role": "assistant", "text": "并行完成"}
+    ],
+    "stop_reason": "stop"
+  }
+}

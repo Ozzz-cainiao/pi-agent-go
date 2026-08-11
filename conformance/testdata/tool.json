@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "name": "tool_call_and_result",
+  "upstream_case": "agent-loop.test.ts: should handle tool calls and results",
+  "scenario": "tool",
+  "input": {"prompt": "查询 Pi", "tool_results": {"search": "Pi 资料"}},
+  "script": [
+    {"stop_reason": "toolUse", "tool_calls": [{"id": "call-1", "name": "search", "arguments": {"query": "Pi"}}]},
+    {"text": "找到 Pi 资料", "stop_reason": "stop"}
+  ],
+  "expected": {
+    "events": ["agent_start", "turn_start", "message_start", "message_end", "message_start", "message_end", "tool_execution_start", "tool_execution_end", "message_start", "message_end", "turn_end", "turn_start", "message_start", "message_end", "turn_end", "agent_end"],
+    "messages": [
+      {"role": "user", "text": "查询 Pi"},
+      {"role": "assistant", "tool_calls": [{"id": "call-1", "name": "search", "arguments": {"query": "Pi"}}]},
+      {"role": "tool", "text": "Pi 资料", "tool_name": "search", "tool_call_id": "call-1"},
+      {"role": "assistant", "text": "找到 Pi 资料"}
+    ],
+    "stop_reason": "stop"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "name": "abort_active_prompt",
+  "upstream_case": "agent.test.ts: should handle abort controller",
+  "scenario": "abort",
+  "input": {"prompt": "等待取消"},
+  "script": [{"wait_for_cancel": true}],
+  "expected": {
+    "events": ["agent_start", "turn_start", "message_start", "message_end", "message_start", "message_end", "turn_end", "agent_end"],
+    "messages": [
+      {"role": "user", "text": "等待取消"},
+      {"role": "assistant"}
+    ],
+    "stop_reason": "aborted"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "name": "continue_from_tool_result",
+  "upstream_case": "agent-loop.test.ts: should continue from existing context without emitting user message events",
+  "scenario": "continue",
+  "input": {
+    "history": [
+      {"role": "user", "text": "查询"},
+      {"role": "assistant", "tool_calls": [{"id": "call-1", "name": "search", "arguments": {"query": "Pi"}}]},
+      {"role": "tool", "text": "结果", "tool_name": "search", "tool_call_id": "call-1"}
+    ]
+  },
+  "script": [{"text": "最终回答", "stop_reason": "stop"}],
+  "expected": {
+    "events": ["agent_start", "turn_start", "message_start", "message_end", "turn_end", "agent_end"],
+    "messages": [{"role": "assistant", "text": "最终回答"}],
+    "stop_reason": "stop"
+  }
+}
