@@ -2,166 +2,92 @@ package agent
 
 import "reflect"
 
-func cloneAssistantMessage(message AssistantMessage) AssistantMessage {
+func cloneAssistantMessage(message AssistantMessage) (AssistantMessage, error) {
+	return newSnapshotCloner().cloneAssistantMessage(message)
+}
+
+func (cloner *snapshotCloner) cloneAssistantMessage(
+	message AssistantMessage,
+) (AssistantMessage, error) {
 	cloned := message
 	if message.Content != nil {
 		cloned.Content = make([]AssistantContent, len(message.Content))
 		for index, content := range message.Content {
-			cloned.Content[index] = cloneAssistantContent(content)
+			clonedContent, err := cloner.cloneAssistantContent(content)
+			if err != nil {
+				return AssistantMessage{}, err
+			}
+			cloned.Content[index] = clonedContent
 		}
 	}
 	cloned.Usage.CacheWrite1HTokens = cloneInt64(message.Usage.CacheWrite1HTokens)
 	cloned.Usage.ReasoningTokens = cloneInt64(message.Usage.ReasoningTokens)
 
-	return cloned
+	return cloned, nil
 }
 
-func cloneAssistantContent(content AssistantContent) AssistantContent {
+func (cloner *snapshotCloner) cloneAssistantContent(
+	content AssistantContent,
+) (AssistantContent, error) {
 	switch value := content.(type) {
 	case TextContent:
-		return value
+		return value, nil
 	case *TextContent:
 		if value == nil {
-			return value
+			return value, nil
 		}
 
 		cloned := *value
 
-		return &cloned
+		return &cloned, nil
 	case ThinkingContent:
-		return value
+		return value, nil
 	case *ThinkingContent:
 		if value == nil {
-			return value
+			return value, nil
 		}
 
 		cloned := *value
 
-		return &cloned
+		return &cloned, nil
 	case ToolCall:
-		return cloneToolCall(value)
+		return cloner.cloneToolCall(value)
 	case *ToolCall:
 		if value == nil {
-			return value
+			return value, nil
 		}
 
-		cloned := cloneToolCall(*value)
+		cloned, err := cloner.cloneToolCall(*value)
+		if err != nil {
+			return nil, err
+		}
 
-		return &cloned
+		return &cloned, nil
 	}
 
-	return content
+	return content, nil
 }
 
-func cloneToolCall(call ToolCall) ToolCall {
+func (cloner *snapshotCloner) cloneToolCall(call ToolCall) (ToolCall, error) {
+	clonedArguments, err := cloner.cloneValue(
+		reflect.ValueOf(call.Arguments),
+		"ToolCall.Arguments",
+	)
+	if err != nil {
+		return ToolCall{}, err
+	}
+	arguments, ok := clonedArguments.Interface().(map[string]any)
+	if !ok {
+		return ToolCall{}, &SnapshotCloneError{
+			Path: "ToolCall.Arguments",
+			Type: clonedArguments.Type().String(),
+		}
+	}
+
 	cloned := call
-	cloned.Arguments = cloneArguments(call.Arguments)
+	cloned.Arguments = arguments
 
-	return cloned
-}
-
-func cloneArguments(arguments map[string]any) map[string]any {
-	if arguments == nil {
-		return nil
-	}
-
-	cloned := make(map[string]any, len(arguments))
-	for key, value := range arguments {
-		cloned[key] = cloneArgumentValue(value)
-	}
-
-	return cloned
-}
-
-func cloneArgumentValue(value any) any {
-	cloned := cloneMutableValue(reflect.ValueOf(value))
-	if !cloned.IsValid() {
-		return nil
-	}
-
-	return cloned.Interface()
-}
-
-func cloneMutableValue(value reflect.Value) reflect.Value {
-	if !value.IsValid() {
-		return value
-	}
-
-	switch value.Kind() {
-	case reflect.Interface:
-		if value.IsNil() {
-			return reflect.Zero(value.Type())
-		}
-
-		cloned := reflect.New(value.Type()).Elem()
-		cloned.Set(cloneMutableValue(value.Elem()))
-
-		return cloned
-	case reflect.Map:
-		if value.IsNil() {
-			return reflect.Zero(value.Type())
-		}
-
-		cloned := reflect.MakeMapWithSize(value.Type(), value.Len())
-		iterator := value.MapRange()
-		for iterator.Next() {
-			cloned.SetMapIndex(iterator.Key(), cloneMutableValue(iterator.Value()))
-		}
-
-		return cloned
-	case reflect.Slice:
-		if value.IsNil() {
-			return reflect.Zero(value.Type())
-		}
-
-		cloned := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
-		for index := range value.Len() {
-			cloned.Index(index).Set(cloneMutableValue(value.Index(index)))
-		}
-
-		return cloned
-	case reflect.Array:
-		cloned := reflect.New(value.Type()).Elem()
-		for index := range value.Len() {
-			cloned.Index(index).Set(cloneMutableValue(value.Index(index)))
-		}
-
-		return cloned
-	case reflect.Pointer:
-		if value.IsNil() {
-			return reflect.Zero(value.Type())
-		}
-
-		cloned := reflect.New(value.Type().Elem())
-		cloned.Elem().Set(cloneMutableValue(value.Elem()))
-
-		return cloned
-	case reflect.Invalid,
-		reflect.Bool,
-		reflect.Int,
-		reflect.Int8,
-		reflect.Int16,
-		reflect.Int32,
-		reflect.Int64,
-		reflect.Uint,
-		reflect.Uint8,
-		reflect.Uint16,
-		reflect.Uint32,
-		reflect.Uint64,
-		reflect.Uintptr,
-		reflect.Float32,
-		reflect.Float64,
-		reflect.Complex64,
-		reflect.Complex128,
-		reflect.Chan,
-		reflect.Func,
-		reflect.String,
-		reflect.Struct,
-		reflect.UnsafePointer:
-		return value
-	}
-
-	return value
+	return cloned, nil
 }
 
 func cloneInt64(value *int64) *int64 {

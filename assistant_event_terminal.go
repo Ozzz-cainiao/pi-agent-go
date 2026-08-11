@@ -8,10 +8,11 @@ type AssistantDoneEvent struct {
 
 func (AssistantDoneEvent) isAssistantMessageEvent() {}
 
-func (event AssistantDoneEvent) snapshot() AssistantMessageEvent {
-	event.Message = cloneAssistantMessage(event.Message)
+func (event AssistantDoneEvent) snapshot() (AssistantMessageEvent, error) {
+	message, err := cloneAssistantMessage(event.Message)
+	event.Message = message
 
-	return event
+	return event, err
 }
 
 // AssistantErrorEvent 表示 Assistant 因失败或取消而结束响应。
@@ -22,8 +23,9 @@ type AssistantErrorEvent struct {
 
 func (AssistantErrorEvent) isAssistantMessageEvent() {}
 
-func (event AssistantErrorEvent) snapshot() AssistantMessageEvent {
-	event.Error = cloneAssistantMessage(event.Error)
+func (event AssistantErrorEvent) snapshot() (AssistantMessageEvent, error) {
+	message, err := cloneAssistantMessage(event.Error)
+	event.Error = message
 
-	return event
+	return event, err
 }

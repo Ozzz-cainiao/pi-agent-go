@@ -8,10 +8,11 @@ type AssistantThinkingStartEvent struct {
 
 func (AssistantThinkingStartEvent) isAssistantMessageEvent() {}
 
-func (event AssistantThinkingStartEvent) snapshot() AssistantMessageEvent {
-	event.Partial = cloneAssistantMessage(event.Partial)
+func (event AssistantThinkingStartEvent) snapshot() (AssistantMessageEvent, error) {
+	partial, err := cloneAssistantMessage(event.Partial)
+	event.Partial = partial
 
-	return event
+	return event, err
 }
 
 // AssistantThinkingDeltaEvent 表示 Assistant 生成了一段增量推理内容。
@@ -23,10 +24,11 @@ type AssistantThinkingDeltaEvent struct {
 
 func (AssistantThinkingDeltaEvent) isAssistantMessageEvent() {}
 
-func (event AssistantThinkingDeltaEvent) snapshot() AssistantMessageEvent {
-	event.Partial = cloneAssistantMessage(event.Partial)
+func (event AssistantThinkingDeltaEvent) snapshot() (AssistantMessageEvent, error) {
+	partial, err := cloneAssistantMessage(event.Partial)
+	event.Partial = partial
 
-	return event
+	return event, err
 }
 
 // AssistantThinkingEndEvent 表示 Assistant 完成一段推理内容。
@@ -38,8 +40,9 @@ type AssistantThinkingEndEvent struct {
 
 func (AssistantThinkingEndEvent) isAssistantMessageEvent() {}
 
-func (event AssistantThinkingEndEvent) snapshot() AssistantMessageEvent {
-	event.Partial = cloneAssistantMessage(event.Partial)
+func (event AssistantThinkingEndEvent) snapshot() (AssistantMessageEvent, error) {
+	partial, err := cloneAssistantMessage(event.Partial)
+	event.Partial = partial
 
-	return event
+	return event, err
 }

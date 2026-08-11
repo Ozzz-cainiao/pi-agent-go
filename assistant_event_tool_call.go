@@ -8,10 +8,11 @@ type AssistantToolCallStartEvent struct {
 
 func (AssistantToolCallStartEvent) isAssistantMessageEvent() {}
 
-func (event AssistantToolCallStartEvent) snapshot() AssistantMessageEvent {
-	event.Partial = cloneAssistantMessage(event.Partial)
+func (event AssistantToolCallStartEvent) snapshot() (AssistantMessageEvent, error) {
+	partial, err := cloneAssistantMessage(event.Partial)
+	event.Partial = partial
 
-	return event
+	return event, err
 }
 
 // AssistantToolCallDeltaEvent 表示 Assistant 生成了一段增量工具参数。
@@ -23,10 +24,11 @@ type AssistantToolCallDeltaEvent struct {
 
 func (AssistantToolCallDeltaEvent) isAssistantMessageEvent() {}
 
-func (event AssistantToolCallDeltaEvent) snapshot() AssistantMessageEvent {
-	event.Partial = cloneAssistantMessage(event.Partial)
+func (event AssistantToolCallDeltaEvent) snapshot() (AssistantMessageEvent, error) {
+	partial, err := cloneAssistantMessage(event.Partial)
+	event.Partial = partial
 
-	return event
+	return event, err
 }
 
 // AssistantToolCallEndEvent 表示 Assistant 完成一次工具调用。
@@ -38,9 +40,15 @@ type AssistantToolCallEndEvent struct {
 
 func (AssistantToolCallEndEvent) isAssistantMessageEvent() {}
 
-func (event AssistantToolCallEndEvent) snapshot() AssistantMessageEvent {
-	event.ToolCall = cloneToolCall(event.ToolCall)
-	event.Partial = cloneAssistantMessage(event.Partial)
+func (event AssistantToolCallEndEvent) snapshot() (AssistantMessageEvent, error) {
+	cloner := newSnapshotCloner()
+	toolCall, err := cloner.cloneToolCall(event.ToolCall)
+	if err != nil {
+		return nil, err
+	}
+	partial, err := cloner.cloneAssistantMessage(event.Partial)
+	event.ToolCall = toolCall
+	event.Partial = partial
 
-	return event
+	return event, err
 }

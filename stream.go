@@ -5,7 +5,7 @@ import "context"
 // AssistantMessageEvent 表示从 start 到 done/error 的一个 Assistant 流式事件。
 type AssistantMessageEvent interface {
 	isAssistantMessageEvent()
-	snapshot() AssistantMessageEvent
+	snapshot() (AssistantMessageEvent, error)
 }
 
 // AssistantMessageEventSink 接收模型流中产生的事件。
@@ -25,7 +25,12 @@ func assistantMessageEventSinkOrDiscard(
 ) AssistantMessageEventSink {
 	if emit != nil {
 		return func(event AssistantMessageEvent) error {
-			return emit(event.snapshot())
+			snapshot, err := event.snapshot()
+			if err != nil {
+				return err
+			}
+
+			return emit(snapshot)
 		}
 	}
 

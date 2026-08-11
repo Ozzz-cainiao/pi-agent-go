@@ -7,10 +7,11 @@ type AssistantStartEvent struct {
 
 func (AssistantStartEvent) isAssistantMessageEvent() {}
 
-func (event AssistantStartEvent) snapshot() AssistantMessageEvent {
-	event.Partial = cloneAssistantMessage(event.Partial)
+func (event AssistantStartEvent) snapshot() (AssistantMessageEvent, error) {
+	partial, err := cloneAssistantMessage(event.Partial)
+	event.Partial = partial
 
-	return event
+	return event, err
 }
 
 // AssistantTextStartEvent 表示 Assistant 开始生成一段文本。
@@ -21,10 +22,11 @@ type AssistantTextStartEvent struct {
 
 func (AssistantTextStartEvent) isAssistantMessageEvent() {}
 
-func (event AssistantTextStartEvent) snapshot() AssistantMessageEvent {
-	event.Partial = cloneAssistantMessage(event.Partial)
+func (event AssistantTextStartEvent) snapshot() (AssistantMessageEvent, error) {
+	partial, err := cloneAssistantMessage(event.Partial)
+	event.Partial = partial
 
-	return event
+	return event, err
 }
 
 // AssistantTextDeltaEvent 表示 Assistant 生成了一段增量文本。
@@ -36,10 +38,11 @@ type AssistantTextDeltaEvent struct {
 
 func (AssistantTextDeltaEvent) isAssistantMessageEvent() {}
 
-func (event AssistantTextDeltaEvent) snapshot() AssistantMessageEvent {
-	event.Partial = cloneAssistantMessage(event.Partial)
+func (event AssistantTextDeltaEvent) snapshot() (AssistantMessageEvent, error) {
+	partial, err := cloneAssistantMessage(event.Partial)
+	event.Partial = partial
 
-	return event
+	return event, err
 }
 
 // AssistantTextEndEvent 表示 Assistant 完成一段文本。
@@ -51,8 +54,9 @@ type AssistantTextEndEvent struct {
 
 func (AssistantTextEndEvent) isAssistantMessageEvent() {}
 
-func (event AssistantTextEndEvent) snapshot() AssistantMessageEvent {
-	event.Partial = cloneAssistantMessage(event.Partial)
+func (event AssistantTextEndEvent) snapshot() (AssistantMessageEvent, error) {
+	partial, err := cloneAssistantMessage(event.Partial)
+	event.Partial = partial
 
-	return event
+	return event, err
 }
