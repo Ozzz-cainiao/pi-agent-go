@@ -1,5 +1,7 @@
 package agent
 
+import "reflect"
+
 func cloneAssistantMessage(message AssistantMessage) AssistantMessage {
 	cloned := message
 	if message.Content != nil {
@@ -72,23 +74,94 @@ func cloneArguments(arguments map[string]any) map[string]any {
 }
 
 func cloneArgumentValue(value any) any {
-	switch value := value.(type) {
-	case map[string]any:
-		return cloneArguments(value)
-	case []any:
-		if value == nil {
-			return []any(nil)
+	cloned := cloneMutableValue(reflect.ValueOf(value))
+	if !cloned.IsValid() {
+		return nil
+	}
+
+	return cloned.Interface()
+}
+
+func cloneMutableValue(value reflect.Value) reflect.Value {
+	if !value.IsValid() {
+		return value
+	}
+
+	switch value.Kind() {
+	case reflect.Interface:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
 		}
 
-		cloned := make([]any, len(value))
-		for index, item := range value {
-			cloned[index] = cloneArgumentValue(item)
+		cloned := reflect.New(value.Type()).Elem()
+		cloned.Set(cloneMutableValue(value.Elem()))
+
+		return cloned
+	case reflect.Map:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+
+		cloned := reflect.MakeMapWithSize(value.Type(), value.Len())
+		iterator := value.MapRange()
+		for iterator.Next() {
+			cloned.SetMapIndex(iterator.Key(), cloneMutableValue(iterator.Value()))
 		}
 
 		return cloned
-	default:
+	case reflect.Slice:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+
+		cloned := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
+		for index := range value.Len() {
+			cloned.Index(index).Set(cloneMutableValue(value.Index(index)))
+		}
+
+		return cloned
+	case reflect.Array:
+		cloned := reflect.New(value.Type()).Elem()
+		for index := range value.Len() {
+			cloned.Index(index).Set(cloneMutableValue(value.Index(index)))
+		}
+
+		return cloned
+	case reflect.Pointer:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+
+		cloned := reflect.New(value.Type().Elem())
+		cloned.Elem().Set(cloneMutableValue(value.Elem()))
+
+		return cloned
+	case reflect.Invalid,
+		reflect.Bool,
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Uintptr,
+		reflect.Float32,
+		reflect.Float64,
+		reflect.Complex64,
+		reflect.Complex128,
+		reflect.Chan,
+		reflect.Func,
+		reflect.String,
+		reflect.Struct,
+		reflect.UnsafePointer:
 		return value
 	}
+
+	return value
 }
 
 func cloneInt64(value *int64) *int64 {
