@@ -27,10 +27,12 @@ type ConvertToLLMFunc func(context.Context, []AgentMessage) ([]Message, error)
 
 // LoopConfig 集中声明 Agent Loop 的依赖与安全限制。
 type LoopConfig struct {
-	Stream       StreamFunc
-	ConvertToLLM ConvertToLLMFunc
-	Clock        Clock
-	MaxTurns     int
+	Stream           StreamFunc
+	TransformContext TransformContextFunc
+	ConvertToLLM     ConvertToLLMFunc
+	PrepareNextTurn  PrepareNextTurnFunc
+	Clock            Clock
+	MaxTurns         int
 }
 
 // LoopConfigError 描述不合法的 Agent Loop 配置字段。
@@ -65,10 +67,12 @@ func (turnError *MaxTurnsError) Unwrap() error {
 }
 
 type loopRuntime struct {
-	stream       StreamFunc
-	convertToLLM ConvertToLLMFunc
-	clock        Clock
-	maxTurns     int
+	stream           StreamFunc
+	transformContext TransformContextFunc
+	convertToLLM     ConvertToLLMFunc
+	prepareNextTurn  PrepareNextTurnFunc
+	clock            Clock
+	maxTurns         int
 }
 
 func (config LoopConfig) runtime() (loopRuntime, error) {
@@ -99,10 +103,12 @@ func (config LoopConfig) runtime() (loopRuntime, error) {
 	}
 
 	return loopRuntime{
-		stream:       config.Stream,
-		convertToLLM: convertToLLM,
-		clock:        clock,
-		maxTurns:     maxTurns,
+		stream:           config.Stream,
+		transformContext: config.TransformContext,
+		convertToLLM:     convertToLLM,
+		prepareNextTurn:  config.PrepareNextTurn,
+		clock:            clock,
+		maxTurns:         maxTurns,
 	}, nil
 }
 

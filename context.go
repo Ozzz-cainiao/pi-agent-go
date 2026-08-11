@@ -26,16 +26,27 @@ func (current AgentContext) WithMessages(messages ...AgentMessage) AgentContext 
 
 func (current AgentContext) toLLM(
 	ctx context.Context,
+	transform TransformContextFunc,
 	convert ConvertToLLMFunc,
 ) (AgentContext, error) {
-	messages, err := convert(ctx, current.Messages)
+	messages, err := cloneAgentMessages(current.Messages)
+	if err != nil {
+		return AgentContext{}, err
+	}
+	if transform != nil {
+		messages, err = transform(ctx, messages)
+		if err != nil {
+			return AgentContext{}, err
+		}
+	}
+	converted, err := convert(ctx, messages)
 	if err != nil {
 		return AgentContext{}, err
 	}
 
 	next := current
-	next.Messages = make([]AgentMessage, len(messages))
-	for index, message := range messages {
+	next.Messages = make([]AgentMessage, len(converted))
+	for index, message := range converted {
 		next.Messages[index] = message
 	}
 	next.Tools = slices.Clone(current.Tools)

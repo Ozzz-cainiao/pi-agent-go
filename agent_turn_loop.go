@@ -48,6 +48,9 @@ func runAgentTurns(
 		}); err != nil {
 			return err
 		}
+		if err := prepareNextTurn(ctx, runtime.prepareNextTurn, state, response, toolResults); err != nil {
+			return err
+		}
 		if !continues {
 			return nil
 		}
@@ -82,7 +85,11 @@ func streamAssistantTurn(
 	events agentEventEmitter,
 	state *loopState,
 ) (AssistantMessage, error) {
-	modelContext, err := state.current.toLLM(ctx, runtime.convertToLLM)
+	modelContext, err := state.current.toLLM(
+		ctx,
+		runtime.transformContext,
+		runtime.convertToLLM,
+	)
 	if err != nil {
 		return AssistantMessage{}, fmt.Errorf("convert messages to llm: %w", err)
 	}

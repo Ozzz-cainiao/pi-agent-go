@@ -16,16 +16,26 @@ func RunAgentLoop(
 	sink AgentEventSink,
 ) (messages []AgentMessage, runError error) {
 	newMessages := slices.Clone(prompts)
-	events := newAgentEventEmitter(sink)
-	if err := events.emit(AgentStartEvent{}); err != nil {
-		return newMessages, err
-	}
-
 	state := loopState{
 		current:  initial.WithMessages(prompts...),
 		messages: newMessages,
 	}
-	runError = runAgentTurns(ctx, prompts, config, events, &state)
+	return runLoopLifecycle(ctx, prompts, config, sink, &state)
+}
+
+func runLoopLifecycle(
+	ctx context.Context,
+	prompts []AgentMessage,
+	config LoopConfig,
+	sink AgentEventSink,
+	state *loopState,
+) ([]AgentMessage, error) {
+	events := newAgentEventEmitter(sink)
+	if err := events.emit(AgentStartEvent{}); err != nil {
+		return state.messages, err
+	}
+
+	runError := runAgentTurns(ctx, prompts, config, events, state)
 	endError := events.emit(AgentEndEvent{Messages: state.messages})
 
 	return state.messages, errors.Join(runError, endError)
