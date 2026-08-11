@@ -62,3 +62,9 @@ func (ThinkingContent) isAssistantContent() {}
 
 // isAssistantContent 将 ToolCall 标记为可用于 Assistant 消息的内容。
 func (ToolCall) isAssistantContent() {}
+
+// isToolResultContent 将 TextContent 标记为可用于工具结果消息的内容。
+func (TextContent) isToolResultContent() {}
+
+// isToolResultContent 将 ImageContent 标记为可用于工具结果消息的内容。
+func (ImageContent) isToolResultContent() {}

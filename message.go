@@ -69,8 +69,4 @@ type ToolResultMessage struct {
 // isMessage 将 ToolResultMessage 标记为 Message 的一种实现。
 func (ToolResultMessage) isMessage() {}
 
-// isToolResultContent 将 TextContent 标记为可用于工具结果消息的内容。
-func (TextContent) isToolResultContent() {}
 
-// isToolResultContent 将 ImageContent 标记为可用于工具结果消息的内容。
-func (ImageContent) isToolResultContent() {}
