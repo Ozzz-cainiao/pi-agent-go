@@ -1,0 +1,7 @@
+This project is an independent Go reimplementation informed by pi-agent-core.
+
+Upstream project: https://github.com/earendil-works/pi
+Upstream author: Mario Zechner
+Pinned reference commit: 3709bef75e4f89508fe66f0e9d124c639de0695c
+
+The upstream MIT license is reproduced in LICENSE.

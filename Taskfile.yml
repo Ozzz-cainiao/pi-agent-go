@@ -1,0 +1,31 @@
+version: "3"
+
+tasks:
+  default:
+    cmds:
+      - task: check
+
+  fmt:
+    desc: Format Go source
+    cmds:
+      - gofumpt -w .
+      - goimports -w -local "$(go list -m)" .
+
+  test:
+    desc: Run deterministic tests with the race detector
+    cmds:
+      - go test -race -shuffle=on -count=1 ./...
+
+  lint:
+    desc: Run static analysis
+    cmds:
+      - golangci-lint run --timeout 5m ./...
+      - nilaway -include-pkgs "$(go list -m)/..." ./...
+
+  check:
+    desc: Run formatting checks, static analysis, and tests
+    cmds:
+      - test -z "$(gofumpt -l .)"
+      - golangci-lint run --timeout 5m ./...
+      - nilaway -include-pkgs "$(go list -m)/..." ./...
+      - go test -race -shuffle=on -count=1 ./...

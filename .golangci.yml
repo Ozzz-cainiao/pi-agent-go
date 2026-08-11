@@ -1,0 +1,72 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - contextcheck
+    - copyloopvar
+    - errcheck
+    - errorlint
+    - exhaustive
+    - fatcontext
+    - funlen
+    - gocognit
+    - gocyclo
+    - gofumpt
+    - goimports
+    - gosec
+    - govet
+    - ineffassign
+    - intrange
+    - misspell
+    - nestif
+    - nilerr
+    - nilnil
+    - prealloc
+    - staticcheck
+    - testifylint
+    - unconvert
+    - unused
+    - usetesting
+    - whitespace
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    exhaustive:
+      default-signifies-exhaustive: false
+      check:
+        - switch
+        - map
+    funlen:
+      lines: 90
+      statements: 60
+      ignore-comments: true
+    gocognit:
+      min-complexity: 25
+    gocyclo:
+      min-complexity: 15
+    goimports:
+      local-prefixes:
+        - github.com/Ozzz-cainiao/pi-agent-go
+    nestif:
+      min-complexity: 4
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - funlen
+          - gosec
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
