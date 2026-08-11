@@ -46,7 +46,7 @@ func appendTruncatedResults(
 	return results, nil
 }
 
-func executeToolCalls(
+func executeToolCallsSequential(
 	ctx context.Context,
 	runtime loopRuntime,
 	events agentEventEmitter,

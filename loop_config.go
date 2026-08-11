@@ -34,6 +34,7 @@ type LoopConfig struct {
 	ArgumentValidator ArgumentValidator
 	BeforeToolCall    BeforeToolCallFunc
 	AfterToolCall     AfterToolCallFunc
+	ToolExecution     ToolExecutionMode
 	Clock             Clock
 	MaxTurns          int
 }
@@ -77,6 +78,7 @@ type loopRuntime struct {
 	argumentValidator ArgumentValidator
 	beforeToolCall    BeforeToolCallFunc
 	afterToolCall     AfterToolCallFunc
+	toolExecution     ToolExecutionMode
 	clock             Clock
 	maxTurns          int
 }
@@ -111,6 +113,16 @@ func (config LoopConfig) runtime() (loopRuntime, error) {
 	if argumentValidator == nil {
 		argumentValidator = JSONSchemaArgumentValidator{}
 	}
+	toolExecution := config.ToolExecution
+	if toolExecution == "" {
+		toolExecution = ToolExecutionModeParallel
+	}
+	if toolExecution != ToolExecutionModeSequential && toolExecution != ToolExecutionModeParallel {
+		return loopRuntime{}, &LoopConfigError{
+			Field: "ToolExecution",
+			Cause: fmt.Errorf("unknown mode %q", toolExecution),
+		}
+	}
 
 	return loopRuntime{
 		stream:            config.Stream,
@@ -120,6 +132,7 @@ func (config LoopConfig) runtime() (loopRuntime, error) {
 		argumentValidator: argumentValidator,
 		beforeToolCall:    config.BeforeToolCall,
 		afterToolCall:     config.AfterToolCall,
+		toolExecution:     toolExecution,
 		clock:             clock,
 		maxTurns:          maxTurns,
 	}, nil

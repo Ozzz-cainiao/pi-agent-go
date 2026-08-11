@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"fmt"
 )
 
 // executeToolCall 执行一次工具调用，并将结果转换为标准消息。
@@ -13,52 +12,24 @@ func executeToolCall(
 	onUpdate toolUpdateSink,
 	options toolCallExecutionOptions,
 ) (toolCallOutcome, error) {
-	tool, ok := findToolByName(options.context.Tools, call.Name)
-	if !ok {
-		result := newErrorToolResult(
-			"Tool " + call.Name + " not found",
-		)
+	preparation := prepareToolCall(ctx, call, timestamp, options)
+	if !preparation.execute {
+		return preparation.immediate, nil
+	}
+	return executePreparedToolCall(ctx, preparation, onUpdate)
+}
 
-		return newToolCallOutcome(call, result, true, timestamp), nil
-	}
-	preparedCall, err := prepareToolCallArguments(tool, call)
-	if err != nil {
-		result := newErrorToolResult(
-			fmt.Sprintf("Tool %q argument preparation failed: %v", call.Name, err),
-		)
-		return newToolCallOutcome(call, result, true, timestamp), nil
-	}
-	if err := options.validator.Validate(ctx, tool.Definition(), preparedCall.Arguments); err != nil {
-		result := newErrorToolResult(
-			fmt.Sprintf("Tool %q arguments invalid: %v", call.Name, err),
-		)
-		return newToolCallOutcome(call, result, true, timestamp), nil
-	}
-	beforeResult, err := runBeforeToolCall(
-		ctx,
-		options.before,
-		options,
-		call,
-		&preparedCall,
-	)
-	if err != nil {
-		result := newErrorToolResult(
-			fmt.Sprintf("Tool %q before hook failed: %v", call.Name, err),
-		)
-		return newToolCallOutcome(call, result, true, timestamp), nil
-	}
-	if beforeResult.Block {
-		reason := beforeResult.Reason
-		if reason == "" {
-			reason = "Tool execution was blocked"
-		}
-		result := newErrorToolResult(reason)
-		result.Terminate = beforeResult.Terminate
-		return newToolCallOutcome(call, result, true, timestamp), nil
-	}
-
+func executePreparedToolCall(
+	ctx context.Context,
+	preparation toolCallPreparation,
+	onUpdate toolUpdateSink,
+) (toolCallOutcome, error) {
 	updates := newToolUpdateGate(onUpdate)
-	result, err := tool.Execute(ctx, preparedCall, updates.update)
+	result, err := preparation.tool.Execute(
+		ctx,
+		preparation.preparedCall,
+		updates.update,
+	)
 	if updateError := updates.settle(); updateError != nil {
 		return toolCallOutcome{}, updateError
 	}
@@ -68,9 +39,19 @@ func executeToolCall(
 		isError = true
 	}
 	result, isError = runAfterToolCall(
-		ctx, options, call, preparedCall, result, isError,
+		ctx,
+		preparation.options,
+		preparation.call,
+		preparation.preparedCall,
+		result,
+		isError,
 	)
-	return newToolCallOutcome(call, result, isError, timestamp), nil
+	return newToolCallOutcome(
+		preparation.call,
+		result,
+		isError,
+		preparation.timestamp,
+	), nil
 }
 
 type toolCallOutcome struct {
