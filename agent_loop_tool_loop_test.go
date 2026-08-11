@@ -63,11 +63,11 @@ func TestRunAgentLoop_executesToolCallAndContinuesModel(t *testing.T) {
 	// 执行
 	got, err := RunAgentLoop(
 		context.Background(),
-		[]Message{prompt},
+		[]AgentMessage{prompt},
 		AgentContext{
 			Tools: []Tool{stubTool{}},
 		},
-		streamFn,
+		LoopConfig{Stream: streamFn},
 		nil,
 	)
 	// 验证

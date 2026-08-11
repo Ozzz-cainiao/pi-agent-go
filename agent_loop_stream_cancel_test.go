@@ -31,7 +31,7 @@ func TestRunAgentLoop_callsModelWithHistoryAndPrompt(t *testing.T) {
 
 	initial := AgentContext{
 		SystemPrompt: "你是一个助手。",
-		Messages:     []Message{history},
+		Messages:     []AgentMessage{history},
 		Tools:        []Tool{stubTool{}},
 	}
 
@@ -49,9 +49,9 @@ func TestRunAgentLoop_callsModelWithHistoryAndPrompt(t *testing.T) {
 	// 执行
 	got, err := RunAgentLoop(
 		context.Background(),
-		[]Message{prompt},
+		[]AgentMessage{prompt},
 		initial,
-		streamFn,
+		LoopConfig{Stream: streamFn},
 		nil,
 	)
 	// 验证
@@ -68,7 +68,7 @@ func TestRunAgentLoop_callsModelWithHistoryAndPrompt(t *testing.T) {
 		)
 	}
 
-	want := []Message{prompt, response}
+	want := []AgentMessage{prompt, response}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("RunAgentLoop() = %#v, want %#v", got, want)
 	}
@@ -100,9 +100,9 @@ func TestRunAgentLoop_doesNotCallModelWhenContextCanceled(t *testing.T) {
 	// 执行
 	got, err := RunAgentLoop(
 		ctx,
-		[]Message{prompt},
+		[]AgentMessage{prompt},
 		AgentContext{},
-		streamFn,
+		LoopConfig{Stream: streamFn},
 		nil,
 	)
 
@@ -114,7 +114,7 @@ func TestRunAgentLoop_doesNotCallModelWhenContextCanceled(t *testing.T) {
 		t.Fatal("RunAgentLoop() called Model after context cancellation")
 	}
 
-	want := []Message{prompt}
+	want := []AgentMessage{prompt}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("RunAgentLoop() = %#v, want %#v", got, want)
 	}
@@ -175,7 +175,7 @@ func TestRunAgentLoop_forwardsAssistantEvents(t *testing.T) {
 		context.Background(),
 		nil,
 		AgentContext{},
-		streamFn,
+		LoopConfig{Stream: streamFn},
 		emit,
 	)
 	// 验证

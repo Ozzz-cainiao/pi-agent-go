@@ -4,32 +4,39 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"time"
 )
 
 // RunAgentLoop 使用本轮消息调用 Model，并返回本轮新增的消息。
 func RunAgentLoop(
 	ctx context.Context,
-	prompts []Message,
+	prompts []AgentMessage,
 	initial AgentContext,
-	streamFn StreamFunc,
+	config LoopConfig,
 	emit AssistantMessageEventSink,
-) ([]Message, error) {
+) ([]AgentMessage, error) {
 	newMessages := slices.Clone(prompts)
 	current := initial.WithMessages(prompts...)
-
-	if emit == nil {
-		emit = func(AssistantMessageEvent) error {
-			return nil
-		}
+	runtime, err := config.runtime()
+	if err != nil {
+		return newMessages, fmt.Errorf("run agent loop: %w", err)
 	}
 
-	for {
+	emit = assistantMessageEventSinkOrDiscard(emit)
+
+	for turn := 0; ; turn++ {
 		if err := ctx.Err(); err != nil {
 			return newMessages, fmt.Errorf("run agent loop: %w", err)
 		}
+		if turn >= runtime.maxTurns {
+			return newMessages, &MaxTurnsError{MaxTurns: runtime.maxTurns}
+		}
 
-		response, err := streamFn(ctx, current, emit)
+		modelContext, err := current.toLLM(ctx, runtime.convertToLLM)
+		if err != nil {
+			return newMessages, fmt.Errorf("convert messages to llm: %w", err)
+		}
+
+		response, err := runtime.stream(ctx, modelContext, emit)
 		if err != nil {
 			return newMessages, fmt.Errorf(
 				"stream assistant response: %w",
@@ -55,7 +62,7 @@ func RunAgentLoop(
 			for _, call := range toolCalls {
 				result := newTruncatedToolResultMessage(
 					call,
-					time.Now().UnixMilli(),
+					runtime.clock().UnixMilli(),
 				)
 
 				newMessages = append(newMessages, result)
@@ -81,7 +88,7 @@ func RunAgentLoop(
 				ctx,
 				current.Tools,
 				call,
-				time.Now().UnixMilli(),
+				runtime.clock().UnixMilli(),
 			)
 
 			newMessages = append(newMessages, result)

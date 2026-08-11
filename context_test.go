@@ -22,7 +22,7 @@ func TestAgentContext_WithMessages_returnsIndependentContext(t *testing.T) {
 
 	original := AgentContext{
 		SystemPrompt: "你是一个助手。",
-		Messages:     []Message{originalMessage},
+		Messages:     []AgentMessage{originalMessage},
 		Tools:        []Tool{stubTool{}},
 	}
 

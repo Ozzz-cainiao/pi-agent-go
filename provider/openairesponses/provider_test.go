@@ -29,7 +29,7 @@ func TestProviderStream_sendsResponsesRequest(t *testing.T) {
 
 	message, err := provider.Stream(context.Background(), agent.AgentContext{
 		SystemPrompt: "你是测试助手。",
-		Messages: []agent.Message{
+		Messages: []agent.AgentMessage{
 			agent.UserMessage{Content: []agent.UserContent{
 				agent.TextContent{Text: "你好"},
 			}},

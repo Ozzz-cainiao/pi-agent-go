@@ -82,7 +82,7 @@ func (provider *Provider) newHTTPRequest(
 	return request, nil
 }
 
-func convertMessages(messages []agent.Message) ([]requestInputItem, error) {
+func convertMessages(messages []agent.AgentMessage) ([]requestInputItem, error) {
 	items := make([]requestInputItem, 0, len(messages))
 	for _, message := range messages {
 		switch value := message.(type) {

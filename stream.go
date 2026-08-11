@@ -21,6 +21,18 @@ type StreamFunc func(
 	emit AssistantMessageEventSink,
 ) (AssistantMessage, error)
 
+func assistantMessageEventSinkOrDiscard(
+	emit AssistantMessageEventSink,
+) AssistantMessageEventSink {
+	if emit != nil {
+		return emit
+	}
+
+	return func(AssistantMessageEvent) error {
+		return nil
+	}
+}
+
 // AssistantStartEvent 表示模型开始生成响应。
 type AssistantStartEvent struct {
 	Partial AssistantMessage

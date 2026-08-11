@@ -69,7 +69,7 @@ func TestRunAgentLoop_terminalStopReasonDoesNotExecuteTool(t *testing.T) {
 				context.Background(),
 				nil,
 				AgentContext{Tools: []Tool{tool}},
-				streamFn,
+				LoopConfig{Stream: streamFn},
 				nil,
 			)
 			// 验证
@@ -136,7 +136,7 @@ func TestRunAgentLoop_doesNotExecuteTruncatedToolCall(t *testing.T) {
 		context.Background(),
 		nil,
 		AgentContext{Tools: []Tool{tool}},
-		streamFn,
+		LoopConfig{Stream: streamFn},
 		nil,
 	)
 	// 验证
