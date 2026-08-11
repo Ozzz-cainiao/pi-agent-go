@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"time"
 )
 
 // RunAgentLoop 使用本轮消息调用 Model，并返回本轮新增的消息。
@@ -13,29 +14,8 @@ func RunAgentLoop(
 	initial AgentContext,
 	streamFn StreamFunc,
 	emit AssistantMessageEventSink,
-
 ) ([]Message, error) {
-	/*
-		RunAgentLoop(
-			在这个 ctx 生命周期中,
-			处理这些 prompts,
-			基于 initial 上下文,
-			使用 streamFn 调用模型,
-			事件收集器
-		)
-		ctx       控制什么时候停止
-		prompts   表示本轮新增消息
-		initial   提供历史、system prompt 和 tools
-		streamFn  决定具体如何调用模型
-		emit      事件收集器 比如增量输出
-	*/
 	newMessages := slices.Clone(prompts)
-
-	// 在调用模型前判断本次 Agent 的 Loop 是否已经被取消或超时
-	if err := ctx.Err(); err != nil {
-		return newMessages, fmt.Errorf("run agent loop: %w", err)
-	}
-
 	current := initial.WithMessages(prompts...)
 
 	if emit == nil {
@@ -44,18 +24,62 @@ func RunAgentLoop(
 		}
 	}
 
-	// ctx 在这里传递给 model
-	response, err := streamFn(
-		ctx,
-		current,
-		emit,
-	)
-	if err != nil {
-		return newMessages, fmt.Errorf("stream assistant response: %w", err)
+	for {
+		if err := ctx.Err(); err != nil {
+			return newMessages, fmt.Errorf("run agent loop: %w", err)
+		}
+
+		response, err := streamFn(ctx, current, emit)
+		if err != nil {
+			return newMessages, fmt.Errorf(
+				"stream assistant response: %w",
+				err,
+			)
+		}
+
+		newMessages = append(newMessages, response)
+		current = current.WithMessages(response)
+
+		toolCalls := toolCallsFrom(response)
+		if len(toolCalls) == 0 {
+			return newMessages, nil
+		}
+
+		for _, call := range toolCalls {
+			if err := ctx.Err(); err != nil {
+				return newMessages, fmt.Errorf(
+					"execute tool call: %w",
+					err,
+				)
+			}
+
+			result := executeToolCall(
+				ctx,
+				current.Tools,
+				call,
+				time.Now().UnixMilli(),
+			)
+
+			newMessages = append(newMessages, result)
+			current = current.WithMessages(result)
+		}
+	}
+}
+
+// toolCallsFrom 提取 AssistantMessage 中的全部工具调用。
+func toolCallsFrom(message AssistantMessage) []ToolCall {
+	var calls []ToolCall
+
+	for _, content := range message.Content {
+		switch value := content.(type) {
+		case ToolCall:
+			calls = append(calls, value)
+		case *ToolCall:
+			if value != nil {
+				calls = append(calls, *value)
+			}
+		}
 	}
 
-	// 即使 Model 没有执行，本轮用户输入仍然已经被 Agent Loop 接收。因此返回
-	newMessages = append(newMessages, response)
-
-	return newMessages, nil
+	return calls
 }
