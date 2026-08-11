@@ -21,7 +21,7 @@ func (agent *Agent) Prompt(ctx context.Context, prompts ...AgentMessage) error {
 			runContext,
 			clonedPrompts,
 			agentContextFromState(state),
-			agent.loopConfig,
+			agent.loopConfigForRun(false),
 			sink,
 		)
 		return err
@@ -35,14 +35,68 @@ func (agent *Agent) Continue(ctx context.Context) error {
 		state AgentState,
 		sink AgentEventSink,
 	) error {
-		_, err := ContinueAgentLoop(
-			runContext,
-			agentContextFromState(state),
-			agent.loopConfig,
-			sink,
-		)
-		return err
+		return agent.continueFromState(runContext, state, sink)
 	})
+}
+
+func (agent *Agent) continueFromState(
+	ctx context.Context,
+	state AgentState,
+	sink AgentEventSink,
+) error {
+	if len(state.Messages) > 0 {
+		last := state.Messages[len(state.Messages)-1]
+		switch last.(type) {
+		case AssistantMessage, *AssistantMessage:
+			return agent.continueFromAssistant(ctx, state, sink)
+		}
+	}
+	_, err := ContinueAgentLoop(
+		ctx,
+		agentContextFromState(state),
+		agent.loopConfigForRun(false),
+		sink,
+	)
+	return err
+}
+
+func (agent *Agent) continueFromAssistant(
+	ctx context.Context,
+	state AgentState,
+	sink AgentEventSink,
+) error {
+	steering, err := agent.drainQueue(agentSteeringQueue)
+	if err != nil {
+		return err
+	}
+	if len(steering) > 0 {
+		return agent.runQueuedPrompt(ctx, state, steering, true, sink)
+	}
+	followUp, err := agent.drainQueue(agentFollowUpQueue)
+	if err != nil {
+		return err
+	}
+	if len(followUp) > 0 {
+		return agent.runQueuedPrompt(ctx, state, followUp, false, sink)
+	}
+	return &ContinuationError{Cause: ErrAssistantContinuation}
+}
+
+func (agent *Agent) runQueuedPrompt(
+	ctx context.Context,
+	state AgentState,
+	prompts []AgentMessage,
+	skipInitialSteering bool,
+	sink AgentEventSink,
+) error {
+	_, err := RunAgentLoop(
+		ctx,
+		prompts,
+		agentContextFromState(state),
+		agent.loopConfigForRun(skipInitialSteering),
+		sink,
+	)
+	return err
 }
 
 type agentRunExecutor func(context.Context, AgentState, AgentEventSink) error

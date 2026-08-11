@@ -47,6 +47,8 @@ type AgentInitialState struct {
 type AgentOptions struct {
 	InitialState *AgentInitialState
 	LoopConfig   LoopConfig
+	SteeringMode QueueMode
+	FollowUpMode QueueMode
 }
 
 func defaultAgentState() AgentState {

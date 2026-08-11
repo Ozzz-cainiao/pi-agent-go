@@ -29,6 +29,13 @@ const (
 	agentStateCurrentIdle
 	agentStateAbort
 	agentStateReset
+	agentStateEnqueueSteering
+	agentStateEnqueueFollowUp
+	agentStateDrainSteering
+	agentStateDrainFollowUp
+	agentStateSetSteeringMode
+	agentStateSetFollowUpMode
+	agentStateHasQueuedMessages
 	agentStateClose
 )
 
@@ -44,15 +51,19 @@ type agentStateCommand struct {
 	event        AgentEvent
 	runDone      chan struct{}
 	cancel       context.CancelFunc
+	queueMessage AgentMessage
+	queueMode    QueueMode
 	reply        chan agentStateReply
 }
 
 type agentStateReply struct {
-	state        AgentState
-	subscribers  []agentSubscriberEntry
-	subscriberID uint64
-	idle         <-chan struct{}
-	err          error
+	state         AgentState
+	subscribers   []agentSubscriberEntry
+	subscriberID  uint64
+	idle          <-chan struct{}
+	queueMessages []AgentMessage
+	hasQueued     bool
+	err           error
 }
 
 type agentOwnedState struct {
@@ -60,6 +71,8 @@ type agentOwnedState struct {
 	subscribers      []agentSubscriberEntry
 	nextSubscriberID uint64
 	active           *agentActiveRun
+	steeringQueue    pendingMessageQueue
+	followUpQueue    pendingMessageQueue
 }
 
 // Agent 通过单一 owner goroutine 串行管理高层状态。
@@ -77,12 +90,16 @@ func NewAgent(options AgentOptions) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
+	queues, err := newAgentQueues(options.SteeringMode, options.FollowUpMode)
+	if err != nil {
+		return nil, err
+	}
 	agent := &Agent{
 		commands:   make(chan agentStateCommand),
 		done:       make(chan struct{}),
 		loopConfig: options.LoopConfig,
 	}
-	go agent.ownState(state)
+	go agent.ownState(state, queues)
 	return agent, nil
 }
 
@@ -161,9 +178,11 @@ func (agent *Agent) execute(command agentStateCommand) (agentStateReply, error) 
 	return reply, reply.err
 }
 
-func (agent *Agent) ownState(state AgentState) {
+func (agent *Agent) ownState(state AgentState, queues agentQueues) {
 	defer close(agent.done)
-	owned := agentOwnedState{state: state}
+	owned := agentOwnedState{
+		state: state, steeringQueue: queues.steering, followUpQueue: queues.followUp,
+	}
 	for {
 		command := <-agent.commands
 		reply, stop := applyAgentStateCommand(&owned, command)
@@ -202,6 +221,14 @@ func applyAgentStateCommand(owned *agentOwnedState, command agentStateCommand) (
 		agentStateAbort,
 		agentStateReset:
 		return applyAgentRuntimeCommand(owned, command), false
+	case agentStateEnqueueSteering,
+		agentStateEnqueueFollowUp,
+		agentStateDrainSteering,
+		agentStateDrainFollowUp,
+		agentStateSetSteeringMode,
+		agentStateSetFollowUpMode,
+		agentStateHasQueuedMessages:
+		return applyAgentQueueCommand(owned, command), false
 	case agentStateClose:
 		return agentStateReply{}, true
 	}

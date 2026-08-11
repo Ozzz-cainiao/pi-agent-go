@@ -49,6 +49,8 @@ func applyAgentRunCommand(owned *agentOwnedState, command agentStateCommand) age
 			return agentStateReply{err: ErrAgentBusy}
 		}
 		resetAgentRuntimeState(&owned.state)
+		owned.steeringQueue.messages = nil
+		owned.followUpQueue.messages = nil
 		return agentStateReply{}
 	}
 	if command.operation == agentStateCurrentIdle || command.operation == agentStateAbort {
