@@ -13,7 +13,9 @@ Go 1.23+ model-independent Agent Core based on the behavior of pi-agent-core.
 - Root package `agent` owns public types and Agent Loop behavior.
 - `agenttest` will own reusable scripted models and tools.
 - `conformance` will own language-neutral compatibility fixtures.
-- Real model providers and cloud service transports stay outside this module.
+- Root package `agent` must not depend on real model Provider implementations.
+- `provider/openairesponses` is an allowed independent adapter subpackage.
+- Cloud service transports stay outside this module.
 
 ## Conventions
 
@@ -22,4 +24,4 @@ Go 1.23+ model-independent Agent Core based on the behavior of pi-agent-core.
 - Use typed errors and wrap causes with `%w`.
 - Keep Agent state mutation on one owner goroutine.
 - Keep each non-generated Go file below 250 pure lines.
-- Do not add Pi AgentHarness, persistence, gRPC, or provider implementations.
+- Do not add Pi AgentHarness, Session persistence, gRPC, Kubernetes, or cloud Harness services.

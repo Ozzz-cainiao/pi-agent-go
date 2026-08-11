@@ -9,7 +9,7 @@
 ## 上游基准
 
 - Repository: <https://github.com/earendil-works/pi>
-- Commit: `3709bef75e4f89508fe66f0e9d124c639de0695c`
+- Commit: `2a9b4ebc680053c64e31f635b0b22d5e22564001`
 - Package: `packages/agent`
 - License: MIT
 
@@ -34,13 +34,17 @@
 - Agent 生命周期和状态快照
 - TypeScript/Go 行为兼容测试
 
+## 模块边界
+
+root `agent` Core 只定义公共类型与 Agent Loop 行为，不依赖任何实际模型 Provider。`provider/openairesponses` 是允许存在的独立 adapter 子包，用于在 Core 外部连接 OpenAI Responses API。
+
 ## 暂不包含
 
 - Pi `AgentHarness`
 - Session Tree、Lane 和 JSONL 持久化
 - Compaction、Skills 和 Prompt Template
 - CLI/TUI 和本地文件工具
-- 真实模型 Provider
+- root `agent` Core 内的实际模型 Provider 依赖
 - gRPC、Gateway、Kubernetes 和云端 Harness 服务
 
 ## 开发方法
