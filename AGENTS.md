@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Go 1.23+ model-independent Agent Core based on the behavior of pi-agent-core.
+Go 1.26 model-independent Agent Core based on the behavior of pi-agent-core pinned at `2a9b4ebc680053c64e31f635b0b22d5e22564001`.
 
 ## Commands
 
