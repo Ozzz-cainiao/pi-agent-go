@@ -31,7 +31,7 @@ type requestInputItem struct {
 
 type requestContent struct {
 	Type     string `json:"type"`
-	Text     string `json:"text,omitempty"`
+	Text     string `json:"text"`
 	ImageURL string `json:"image_url,omitempty"`
 }
 
