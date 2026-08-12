@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// ErrProviderDependency 表示 Core 根包的依赖闭包包含 Provider adapter。
-var ErrProviderDependency = errors.New("core 根包依赖 Provider")
+// ErrProviderDependency 表示 Core 实现包的依赖闭包包含 Provider adapter。
+var ErrProviderDependency = errors.New("core 实现包依赖 Provider")
 
 // ViolationError 描述一条可定位、可分类的仓库边界违规。
 type ViolationError struct {

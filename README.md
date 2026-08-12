@@ -34,15 +34,16 @@
 - Agent 生命周期和状态快照
 - TypeScript/Go 行为兼容测试
 
-## 模块边界
+## 目录层级与代码入口
 
-root `agent` Core 只定义公共类型与 Agent Loop 行为，不依赖任何实际模型 Provider。`provider/openairesponses` 是允许存在的独立 adapter 子包，用于在 Core 外部连接 OpenAI Responses API。
+`core` 是完整的 Provider 无关实现包；仓库根包 `agent` 是稳定公共入口，通过类型别名和少量入口函数转发到 `core`。现有调用者仍可导入 `github.com/Ozzz-cainiao/pi-agent-go`，希望直接学习或组合实现时也可以导入 `github.com/Ozzz-cainiao/pi-agent-go/core`。
 
 目录层级如下：
 
 ```text
 pi-agent-go/
-├── *.go                         # package agent：Provider 无关的 Core
+├── agent.go                     # 公共 API 入口和 core 兼容门面
+├── core/                        # Agent Core 完整实现与核心测试
 ├── agenttest/                   # 可复用的测试 Stream、Tool 和 Clock
 ├── conformance/                 # TypeScript/Go 行为兼容夹具
 ├── provider/openairesponses/    # OpenAI Responses API adapter
@@ -50,25 +51,45 @@ pi-agent-go/
 └── internal/boundarycheck/      # Core 依赖方向检查
 ```
 
-root `agent` 包内按完整职责组织源码，而不是按单个小函数拆文件：
+### 入口在哪里
+
+根据阅读目的选择入口：
+
+1. **公共库入口**：根目录 `agent.go`。它展示云端 Harness 或其他应用能够使用的稳定类型和函数。
+2. **高层 Agent 入口**：`core/agent.go` 的 `NewAgent`、`Prompt`、`Continue`。云端服务通常从这里创建并驱动 Agent。
+3. **低层循环入口**：`core/loop.go` 的 `RunAgentLoop`、`ContinueAgentLoop`。理解 Pi Agent Core 时先从这里进入。
+4. **模型接入入口**：`provider/openairesponses/provider.go` 的 Provider 和 `Stream`。它把 Responses API 转换为 Core 的 `StreamFunc`。
+5. **可执行程序入口**：`cmd/pi-agent-example/main.go`。运行 `go run ./cmd/pi-agent-example` 会从这里启动。
+
+实际调用链为：
+
+```text
+cmd/pi-agent-example/main.go
+  → provider/openairesponses.Provider.Stream
+  → agent.NewAgent / Agent.Prompt
+  → core.RunAgentLoop
+  → Model → Tool → Model
+```
+
+`core` 包内按完整职责组织源码：
 
 | 文件 | 职责 |
 | --- | --- |
-| `types.go` | Content、Message、Usage、StopReason、AgentContext |
-| `assistant_stream.go` | Provider 向 Core 发送的 Assistant 流事件 |
-| `events.go` | Core 向上层发送的 Agent 生命周期事件 |
-| `snapshots.go` | 消息和事件对象图的防御性深复制 |
-| `loop.go` | 低层 Agent Loop 入口、配置和 continuation |
-| `loop_runtime.go` | 每轮 Model → Tool → Model 状态机与 turn 控制 |
-| `tools.go` | Tool 公共契约、参数校验和 Hook 类型 |
-| `tool_runtime.go` | 单个工具的准备、执行、Hook 和 update 生命周期 |
-| `tool_batch_runtime.go` | 串行/并行工具批次调度与稳定结果顺序 |
-| `agent.go` | 高层 Agent 公共配置、状态和运行入口 |
-| `agent_runtime.go` | owner goroutine、状态命令和失败闭合 |
-| `agent_queues.go` | steering/follow-up 队列 |
-| `agent_subscription.go` | 事件订阅与串行分发 |
+| `core/types.go` | Content、Message、Usage、StopReason、AgentContext |
+| `core/assistant_stream.go` | Provider 向 Core 发送的 Assistant 流事件 |
+| `core/events.go` | Core 向上层发送的 Agent 生命周期事件 |
+| `core/snapshots.go` | 消息和事件对象图的防御性深复制 |
+| `core/loop.go` | 低层 Agent Loop 入口、配置和 continuation |
+| `core/loop_runtime.go` | 每轮 Model → Tool → Model 状态机与 turn 控制 |
+| `core/tools.go` | Tool 公共契约、参数校验和 Hook 类型 |
+| `core/tool_runtime.go` | 单个工具的准备、执行、Hook 和 update 生命周期 |
+| `core/tool_batch_runtime.go` | 串行/并行工具批次调度与稳定结果顺序 |
+| `core/agent.go` | 高层 Agent 公共配置、状态和运行入口 |
+| `core/agent_runtime.go` | owner goroutine、状态命令和失败闭合 |
+| `core/agent_queues.go` | steering/follow-up 队列 |
+| `core/agent_subscription.go` | 事件订阅与串行分发 |
 
-推荐先读 `types.go`，再读 `assistant_stream.go`、`events.go`、`loop.go`、`loop_runtime.go`、`tools.go`、`tool_runtime.go`，最后阅读高层 `agent.go`。Provider 与云端 Harness 都是 Core 的外层。
+推荐先读 `core/types.go`，再读 `core/assistant_stream.go`、`core/events.go`、`core/loop.go`、`core/loop_runtime.go`、`core/tools.go`、`core/tool_runtime.go`，最后阅读高层 `core/agent.go`。Provider 与云端 Harness 都是 Core 的外层。
 
 ## 暂不包含
 
@@ -76,7 +97,7 @@ root `agent` 包内按完整职责组织源码，而不是按单个小函数拆�
 - Session Tree、Lane 和 JSONL 持久化
 - Compaction、Skills 和 Prompt Template
 - 生产级 CLI/TUI 和本地文件工具；仓库只提供 API 调用示例 CLI
-- root `agent` Core 内的实际模型 Provider 依赖
+- `core` 内的实际模型 Provider 依赖
 - gRPC、Gateway、Kubernetes 和云端 Harness 服务
 
 ## 开发方法
@@ -147,7 +168,7 @@ root `agent` 包内按完整职责组织源码，而不是按单个小函数拆�
 
 `task boundary` 会检查一条硬约束：
 
-1. root `agent` Core 的依赖闭包不能包含当前 module 下的 `provider/...`。
+1. `core` 实现包的依赖闭包不能包含当前 module 下的 `provider/...`。
 
 检查器位于 `internal/boundarycheck`，命令入口位于 `cmd/check-boundaries`，并已接入 `task check`。文件规模不再设置机械行数上限：新增代码应按完整职责组织；只有当一个文件无法用一个清晰职责描述时才拆分，不能为了满足行数目标制造零散小文件。
 

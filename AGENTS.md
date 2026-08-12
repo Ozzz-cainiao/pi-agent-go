@@ -10,10 +10,11 @@ Go 1.26 model-independent Agent Core based on the behavior of pi-agent-core pinn
 
 ## Scope
 
-- Root package `agent` owns public types and Agent Loop behavior.
+- Root package `agent` is the stable public facade.
+- `core` owns the Provider-independent Agent types, low-level Loop, tools, events, and high-level Agent runtime.
 - `agenttest` will own reusable scripted models and tools.
 - `conformance` will own language-neutral compatibility fixtures.
-- Root package `agent` must not depend on real model Provider implementations.
+- `core` must not depend on real model Provider implementations.
 - `provider/openairesponses` is an allowed independent adapter subpackage.
 - Cloud service transports stay outside this module.
 

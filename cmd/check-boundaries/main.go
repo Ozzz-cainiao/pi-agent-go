@@ -32,7 +32,7 @@ func run(ctx context.Context) error {
 	}
 	module, root := moduleInfo[0], moduleInfo[1]
 
-	dependencyCommand := exec.CommandContext(ctx, "go", "list", "-deps", ".")
+	dependencyCommand := exec.CommandContext(ctx, "go", "list", "-deps", "./core")
 	dependencyCommand.Dir = root
 	dependencies, err := commandLines(dependencyCommand, "读取 Core 依赖")
 	if err != nil {
