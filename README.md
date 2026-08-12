@@ -38,6 +38,38 @@
 
 root `agent` Core 只定义公共类型与 Agent Loop 行为，不依赖任何实际模型 Provider。`provider/openairesponses` 是允许存在的独立 adapter 子包，用于在 Core 外部连接 OpenAI Responses API。
 
+目录层级如下：
+
+```text
+pi-agent-go/
+├── *.go                         # package agent：Provider 无关的 Core
+├── agenttest/                   # 可复用的测试 Stream、Tool 和 Clock
+├── conformance/                 # TypeScript/Go 行为兼容夹具
+├── provider/openairesponses/    # OpenAI Responses API adapter
+├── cmd/pi-agent-example/        # 可运行的 API 调用示例
+└── internal/boundarycheck/      # Core 依赖方向检查
+```
+
+root `agent` 包内按完整职责组织源码，而不是按单个小函数拆文件：
+
+| 文件 | 职责 |
+| --- | --- |
+| `types.go` | Content、Message、Usage、StopReason、AgentContext |
+| `assistant_stream.go` | Provider 向 Core 发送的 Assistant 流事件 |
+| `events.go` | Core 向上层发送的 Agent 生命周期事件 |
+| `snapshots.go` | 消息和事件对象图的防御性深复制 |
+| `loop.go` | 低层 Agent Loop 入口、配置和 continuation |
+| `loop_runtime.go` | 每轮 Model → Tool → Model 状态机与 turn 控制 |
+| `tools.go` | Tool 公共契约、参数校验和 Hook 类型 |
+| `tool_runtime.go` | 单个工具的准备、执行、Hook 和 update 生命周期 |
+| `tool_batch_runtime.go` | 串行/并行工具批次调度与稳定结果顺序 |
+| `agent.go` | 高层 Agent 公共配置、状态和运行入口 |
+| `agent_runtime.go` | owner goroutine、状态命令和失败闭合 |
+| `agent_queues.go` | steering/follow-up 队列 |
+| `agent_subscription.go` | 事件订阅与串行分发 |
+
+推荐先读 `types.go`，再读 `assistant_stream.go`、`events.go`、`loop.go`、`loop_runtime.go`、`tools.go`、`tool_runtime.go`，最后阅读高层 `agent.go`。Provider 与云端 Harness 都是 Core 的外层。
+
 ## 暂不包含
 
 - Pi `AgentHarness`
@@ -59,7 +91,7 @@ root `agent` Core 只定义公共类型与 Agent Loop 行为，不依赖任何�
 
 ## 学习顺序
 
-建议按下面的提交顺序阅读，而不是直接从当前 `main` 分支的大量文件开始。每一行都是一个可以独立理解的行为或工程质量增量。
+建议先按上面的职责顺序阅读当前代码；需要理解演进过程时，再按下面的提交顺序回看。表中的旧文件名描述的是当时提交里的组织方式，可使用 `git show <提交>` 查看。
 
 | 提交 | 学习主题 | 对应的 Pi 源行为 | Go 文件/测试 | 学习目的 |
 | --- | --- | --- | --- | --- |
@@ -111,14 +143,13 @@ root `agent` Core 只定义公共类型与 Agent Loop 行为，不依赖任何�
 - 高层可变状态由单一 owner goroutine 串行化；事件和状态对外提供防御性快照，而不是依赖 JavaScript 单线程语义。
 - 当前只保留轻量 `ModelID`，Responses Provider 位于独立 adapter 包；多 Provider 路由不属于本次核心移植。
 
-## 架构与规模边界
+## 架构边界
 
-`task boundary` 会检查两条约束：
+`task boundary` 会检查一条硬约束：
 
 1. root `agent` Core 的依赖闭包不能包含当前 module 下的 `provider/...`。
-2. 除生成文件外，每个 Go 文件最多 250 pure LOC。这里的 pure LOC 指非空、且去除首尾空白后不以 `//` 开头的行。
 
-检查器位于 `internal/boundarycheck`，命令入口位于 `cmd/check-boundaries`。它已经接入 `task check`；新增功能应拆成职责单一的小文件，而不是绕过检查。
+检查器位于 `internal/boundarycheck`，命令入口位于 `cmd/check-boundaries`，并已接入 `task check`。文件规模不再设置机械行数上限：新增代码应按完整职责组织；只有当一个文件无法用一个清晰职责描述时才拆分，不能为了满足行数目标制造零散小文件。
 
 ## 新开发者快速验证
 

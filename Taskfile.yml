@@ -23,7 +23,7 @@ tasks:
       - nilaway -include-pkgs "$(go list -m)/..." ./...
 
   boundary:
-    desc: Verify Core dependency direction and Go file size
+    desc: Verify Core dependency direction
     cmds:
       - go run ./cmd/check-boundaries
 

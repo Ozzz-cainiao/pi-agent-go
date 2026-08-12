@@ -12,8 +12,6 @@ import (
 	"github.com/Ozzz-cainiao/pi-agent-go/internal/boundarycheck"
 )
 
-const maxPureLines = 250
-
 func main() {
 	log.SetFlags(0)
 	if err := run(context.Background()); err != nil {
@@ -40,10 +38,7 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := boundarycheck.CheckDependencies(module, dependencies); err != nil {
-		return err
-	}
-	return boundarycheck.CheckFileSizes(root, maxPureLines)
+	return boundarycheck.CheckDependencies(module, dependencies)
 }
 
 func commandLines(command *exec.Cmd, action string) ([]string, error) {

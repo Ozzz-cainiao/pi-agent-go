@@ -23,5 +23,6 @@ Go 1.26 model-independent Agent Core based on the behavior of pi-agent-core pinn
 - Put `context.Context` first on cancellable or I/O methods.
 - Use typed errors and wrap causes with `%w`.
 - Keep Agent state mutation on one owner goroutine.
-- Keep each non-generated Go file below 250 pure lines.
+- Split files by cohesive responsibility. Do not create tiny files only to satisfy a line-count target.
+- When a file grows, judge whether it still has one clear owner before deciding to split it.
 - Do not add Pi AgentHarness, Session persistence, gRPC, Kubernetes, or cloud Harness services.
