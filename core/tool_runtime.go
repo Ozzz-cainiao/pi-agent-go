@@ -37,6 +37,9 @@ func prepareToolCall(
 	timestamp int64,
 	options toolCallExecutionOptions,
 ) toolCallPreparation {
+	// 工具执行采用固定管线：按名称查找 -> 参数规范化 -> Schema 校验 -> Before Hook。
+	// 任一步失败都不会调用 Tool.Execute，而是生成普通 ToolResultMessage 反馈给 Model，
+	// 让 Model 有机会修正工具名或参数，而不是直接打断整个 Agent Loop。
 	tool, ok := findToolByName(options.context.Tools, call.Name)
 	if !ok {
 		return immediateToolCall(
@@ -234,6 +237,8 @@ func executePreparedToolCall(
 	preparation toolCallPreparation,
 	onUpdate toolUpdateSink,
 ) (toolCallOutcome, error) {
+	// ToolUpdateFunc 只在 Execute 返回前有效，避免工具内部残留 goroutine 在下一轮继续
+	// 向旧调用发送 partial result。最终结果随后经过 After Hook 再写入 transcript。
 	updates := newToolUpdateGate(onUpdate)
 	result, err := preparation.tool.Execute(
 		ctx,
@@ -277,6 +282,8 @@ func newToolCallOutcome(
 	isError bool,
 	timestamp int64,
 ) toolCallOutcome {
+	// 同时保留 ToolResult（事件需要）和 ToolResultMessage（对话历史需要），避免协议层
+	// 与执行层相互依赖。
 	return toolCallOutcome{
 		message:   newToolResultMessage(call, result, isError, timestamp),
 		result:    result,

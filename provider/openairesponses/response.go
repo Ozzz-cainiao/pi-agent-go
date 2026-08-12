@@ -74,6 +74,8 @@ func decodeEventStream(
 	emit agent.AssistantMessageEventSink,
 	clock agent.Clock,
 ) (agent.AssistantMessage, error) {
+	// Responses API 的每个 SSE data 行都是一个带 type 的 JSON 事件。decoder.consume
+	// 按事件类型累积同一条 AssistantMessage，直到 completed/incomplete/failed。
 	decoder := newTextStreamDecoder(emit, clock)
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)

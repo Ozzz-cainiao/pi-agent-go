@@ -11,9 +11,10 @@ type AssistantMessageEvent interface {
 // AssistantMessageEventSink 接收模型流中产生的事件。
 type AssistantMessageEventSink func(AssistantMessageEvent) error
 
-// StreamFunc 调用 Model，并返回最终的 AssistantMessage。
+// StreamFunc 是 Agent Core 与 Model Provider 之间最重要的边界。
 //
-// Model 可以在返回最终消息前，通过 emit 发送流式事件。
+// Provider 负责把厂商协议转换成这些稳定类型：生成过程中通过 emit 发送流式事件，
+// 结束时返回一条完整 AssistantMessage。Core 因此不需要了解 HTTP、SSE 或厂商 JSON。
 type StreamFunc func(
 	ctx context.Context,
 	agentContext AgentContext,
@@ -25,6 +26,8 @@ func assistantMessageEventSinkOrDiscard(
 ) AssistantMessageEventSink {
 	if emit != nil {
 		return func(event AssistantMessageEvent) error {
+			// 每次交付独立快照，消费者修改 Partial 或 ToolCall.Arguments 时不会污染
+			// Provider 正在累积的下一帧消息。
 			snapshot, err := event.snapshot()
 			if err != nil {
 				return err
@@ -238,6 +241,8 @@ type assistantLifecycle struct {
 
 func (lifecycle *assistantLifecycle) sink() AssistantMessageEventSink {
 	return func(event AssistantMessageEvent) error {
+		// Provider 事件比 Agent 事件更细：text/thinking/tool_call delta 都统一映射为
+		// message_update，而 start/done/error 用于闭合一条 transcript 消息。
 		switch value := event.(type) {
 		case AssistantStartEvent:
 			lifecycle.started = true

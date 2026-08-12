@@ -1,4 +1,8 @@
 // Package openairesponses 将 OpenAI Responses API 适配为 agent.StreamFunc。
+//
+// request.go 负责把 Core 的 AgentContext 编码成 /responses 请求；response*.go 负责解析
+// SSE；text_stream_decoder.go 与 tool_stream_decoder.go 累积文本和工具参数，并发出 Core
+// 能理解的 AssistantMessageEvent。这个包不执行工具，工具循环仍完全属于 Core。
 package openairesponses
 
 import (
@@ -75,6 +79,8 @@ func New(config Config) (*Provider, error) {
 }
 
 // Stream 调用 Responses API，并返回最终的 AssistantMessage。
+//
+// 这是 LoopConfig.Stream 的具体实现，也是厂商协议进入 Core 的唯一入口。
 func (provider *Provider) Stream(
 	ctx context.Context,
 	agentContext agent.AgentContext,

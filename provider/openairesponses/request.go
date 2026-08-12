@@ -43,6 +43,7 @@ type requestTool struct {
 }
 
 func newRequestBody(model string, context agent.AgentContext) (requestBody, error) {
+	// Provider 只在网络边界做协议转换：Core 类型本身不携带任何 OpenAI JSON 字段。
 	input, err := convertMessages(context.Messages)
 	if err != nil {
 		return requestBody{}, err
@@ -83,6 +84,8 @@ func (provider *Provider) newHTTPRequest(
 }
 
 func convertMessages(messages []agent.AgentMessage) ([]requestInputItem, error) {
+	// 多轮对话通过每次重发完整 transcript 实现。Assistant ToolCall 与后续
+	// ToolResultMessage 分别映射为 function_call 和 function_call_output。
 	items := make([]requestInputItem, 0, len(messages))
 	for _, message := range messages {
 		switch value := message.(type) {

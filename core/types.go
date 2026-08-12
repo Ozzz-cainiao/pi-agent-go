@@ -145,6 +145,9 @@ func ParseStopReason(raw string) (StopReason, error) {
 }
 
 // AgentMessage 表示 Agent transcript 中的一条消息。
+//
+// transcript 是 Agent 看到的完整运行记录，它除了 Model 能理解的 Message，还允许保存
+// 应用自定义的 CustomMessage。toLLM 会在进入 Provider 前过滤或转换这些应用消息。
 type AgentMessage interface {
 	isAgentMessage()
 	toLLM() (Message, bool)
@@ -159,6 +162,8 @@ type Message interface {
 }
 
 // CustomMessage 表示应用层附加到 Agent transcript 的自定义消息。
+//
+// 默认转换器不会把它发送给 Model；应用可通过 LoopConfig.ConvertToLLM 决定如何转换。
 type CustomMessage struct {
 	Kind    string
 	Payload any
@@ -170,7 +175,8 @@ func (CustomMessage) toLLM() (Message, bool) {
 	return nil, false
 }
 
-// UserContent 表示用户消息中允许出现的内容。
+// UserContent 表示 UserMessage.Content 中允许出现的内容块，而 UserMessage 是包含这些
+// 内容块、时间戳等元数据的一整条消息。
 //
 // 用户只能提交文本和图片，不能直接提交 ThinkingContent 或 ToolCall。
 type UserContent interface {
@@ -251,6 +257,9 @@ func (message ToolResultMessage) toLLM() (Message, bool) {
 }
 
 // AgentContext 表示传递给 Agent Loop 的上下文快照。
+//
+// 它不是 Session 存储本身：上层服务负责按 Session ID 读取和保存 Messages，Core 只在
+// 一次运行期间接收这份快照并派生新快照。
 type AgentContext struct {
 	SystemPrompt string
 	Messages     []AgentMessage
@@ -274,6 +283,7 @@ func (current AgentContext) toLLM(
 	transform TransformContextFunc,
 	convert ConvertToLLMFunc,
 ) (AgentContext, error) {
+	// 先复制再调用 Hook，避免应用侧 TransformContext 意外修改 Agent 保存的 transcript。
 	messages, err := cloneAgentMessages(current.Messages)
 	if err != nil {
 		return AgentContext{}, err
@@ -289,6 +299,7 @@ func (current AgentContext) toLLM(
 		return AgentContext{}, err
 	}
 
+	// Provider 最终只会看到转换后的核心 Message；Tools 与 SystemPrompt 仍属于同一轮上下文。
 	next := current
 	next.Messages = make([]AgentMessage, len(converted))
 	for index, message := range converted {

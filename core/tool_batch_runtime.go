@@ -10,6 +10,8 @@ func executeToolCalls(
 	response AssistantMessage,
 	calls []ToolCall,
 ) ([]ToolResultMessage, bool, error) {
+	// 并行是整批决定：只要全局配置或任一工具要求串行，整批就按源顺序执行。
+	// 这样具有副作用的工具可以通过 Definition.ExecutionMode 明确禁止并行。
 	if toolBatchAllowsParallel(runtime, state.current.Tools, calls) {
 		return executeToolCallsParallel(ctx, runtime, events, state, response, calls)
 	}
@@ -77,6 +79,8 @@ func prepareParallelToolCalls(
 	response AssistantMessage,
 	calls []ToolCall,
 ) ([]parallelToolEntry, error) {
+	// 第一阶段仍按模型给出的顺序完成 start、prepare、validate 和 Before Hook。
+	// 只有真正的 Tool.Execute 进入并行阶段，因此前置策略的事件顺序是确定的。
 	entries := make([]parallelToolEntry, len(calls))
 	for index, call := range calls {
 		if err := events.emit(AgentToolExecutionStartEvent{
@@ -109,6 +113,8 @@ func executeParallelToolCalls(
 	events agentEventEmitter,
 	entries []parallelToolEntry,
 ) error {
+	// worker 可以按任意顺序完成，但结果写回 entries 的原索引。于是执行结束事件反映
+	// 真实完成顺序，而发回 Model 的 ToolResultMessage 仍保持 ToolCall 源顺序。
 	workerContext, cancel := context.WithCancel(ctx)
 	defer cancel()
 	workerCount := 0

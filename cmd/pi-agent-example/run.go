@@ -19,6 +19,8 @@ type cliDependencies struct {
 }
 
 func run(ctx context.Context, args []string, dependencies cliDependencies) (runError error) {
+	// 这个示例展示最短的真实接入路径：读取配置 -> 创建 Provider -> 注入高层 Agent
+	// -> 提交 UserMessage -> 从 AgentState 读取最终 Assistant 文本。
 	config, err := parseCLIConfig(args, dependencies.getenv)
 	if err != nil {
 		return err
@@ -32,6 +34,7 @@ func run(ctx context.Context, args []string, dependencies cliDependencies) (runE
 	if err != nil {
 		return fmt.Errorf("创建 Responses Provider: %w", err)
 	}
+	// Provider.Stream 满足 Core 的 StreamFunc；Core 并不知道下游使用的是 HTTP Responses API。
 	highLevelAgent, err := agent.NewAgent(agent.AgentOptions{
 		InitialState: &agent.AgentInitialState{
 			SystemPrompt: "你是一个演示助手。需要原样返回内容时可以调用 echo 工具。",
@@ -46,6 +49,7 @@ func run(ctx context.Context, args []string, dependencies cliDependencies) (runE
 	defer func() {
 		runError = errors.Join(runError, highLevelAgent.Close())
 	}()
+	// UserMessage 是一整条 transcript 消息；TextContent 是它内部的一段内容块。
 	userMessage := agent.UserMessage{
 		Content: []agent.UserContent{agent.TextContent{Text: config.prompt}},
 	}

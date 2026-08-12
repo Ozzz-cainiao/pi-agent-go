@@ -180,6 +180,7 @@ func injectQueuedMessages(
 }
 
 type loopState struct {
+	// current 累积完整上下文；messages 只累积本次 Run/Continue 产生的增量。
 	current  AgentContext
 	messages []AgentMessage
 }
@@ -206,6 +207,8 @@ func runAgentTurns(
 		return err
 	}
 
+	// 一次 turn 等于“一次 Model 调用 + 该响应中的整批 ToolCall 执行”。只要产生了
+	// 工具结果或排队消息，循环就会再进入下一 turn，把结果交回 Model 继续推理。
 	for turn := 0; ; turn++ {
 		completed, turnError := runSingleTurn(ctx, turn, prompts, pending, runtime, events, state)
 		if turnError != nil {
@@ -250,6 +253,7 @@ func runSingleTurn(
 	events agentEventEmitter,
 	state *loopState,
 ) (completedTurn, error) {
+	// 每个 turn 都形成闭合事件区间：turn_start -> message/tool events -> turn_end。
 	if err := validateTurn(ctx, turn, runtime.maxTurns); err != nil {
 		return completedTurn{}, err
 	}
@@ -310,6 +314,8 @@ func streamAssistantTurn(
 	events agentEventEmitter,
 	state *loopState,
 ) (AssistantMessage, error) {
+	// Core 消息先经过应用变换，再交给 Provider；Provider 通过 lifecycle.sink 把细粒度
+	// Assistant 事件提升为统一的 Agent message_start/update/end 事件。
 	modelContext, err := state.current.toLLM(
 		ctx,
 		runtime.transformContext,
@@ -326,6 +332,7 @@ func streamAssistantTurn(
 	if err := lifecycle.finish(response); err != nil {
 		return AssistantMessage{}, err
 	}
+	// Provider 返回终态消息后，同时写入“本次增量”和“下一轮完整上下文”。
 	state.messages = append(state.messages, response)
 	state.current = state.current.WithMessages(response)
 	return response, nil
@@ -338,6 +345,8 @@ func completeTurn(
 	state *loopState,
 	response AssistantMessage,
 ) ([]ToolResultMessage, bool, error) {
+	// 没有 ToolCall 时本轮自然结束；有 ToolCall 时执行结果会作为新消息写回上下文，
+	// continues 告诉外层循环是否需要再次调用 Model。
 	calls := toolCallsFrom(response)
 	if response.StopReason == StopReasonError || response.StopReason == StopReasonAborted {
 		return nil, false, nil

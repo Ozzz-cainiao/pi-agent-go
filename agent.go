@@ -1,6 +1,10 @@
-// Package agent 保留 pi-agent-go 的稳定公共入口。
+// Package agent 是 pi-agent-go 面向调用方的稳定公共入口。
 //
-// 具体实现位于 core 子包；新代码也可以直接导入 github.com/Ozzz-cainiao/pi-agent-go/core。
+// 这里通过类型别名和薄包装导出 core 子包的能力，不复制业务逻辑。这样外部项目可以一直
+// 使用简短的根包导入路径，而学习实现时可以进入 core 子包逐层阅读。
+//
+// 一般业务代码应导入 github.com/Ozzz-cainiao/pi-agent-go；只有研究内部实现或参与 Core
+// 开发时，才需要直接阅读 github.com/Ozzz-cainiao/pi-agent-go/core。
 package agent
 
 import (
@@ -10,6 +14,7 @@ import (
 )
 
 const (
+	// 以下常量直接复用 core 中的定义，根包与 core 因此不会产生两套不兼容的枚举值。
 	DefaultMaxTurns = core.DefaultMaxTurns
 
 	StopReasonPending  = core.StopReasonPending
@@ -45,6 +50,7 @@ const (
 )
 
 var (
+	// 以下错误保留 errors.Is/errors.As 语义，调用方无需知道错误实际定义在 core 中。
 	ErrInvalidStopReason        = core.ErrInvalidStopReason
 	ErrUnsupportedSnapshotValue = core.ErrUnsupportedSnapshotValue
 	ErrAgentEventSink           = core.ErrAgentEventSink
@@ -63,6 +69,7 @@ var (
 )
 
 type (
+	// 类型别名保持根包 API 与 core 实现完全相同，不产生运行时转换和额外分配。
 	Content                       = core.Content
 	TextContent                   = core.TextContent
 	ThinkingContent               = core.ThinkingContent
@@ -156,6 +163,7 @@ func ParseStopReason(raw string) (StopReason, error) {
 	return core.ParseStopReason(raw)
 }
 
+// RunAgentLoop 调用低层循环；返回值只包含本次运行新增的消息，不包含 initial 中的旧历史。
 func RunAgentLoop(
 	ctx context.Context,
 	prompts []AgentMessage,
@@ -166,6 +174,7 @@ func RunAgentLoop(
 	return core.RunAgentLoop(ctx, prompts, initial, config, sink)
 }
 
+// ContinueAgentLoop 从已有 transcript 继续执行，不重新提交一条新的用户消息。
 func ContinueAgentLoop(
 	ctx context.Context,
 	initial AgentContext,
@@ -175,6 +184,7 @@ func ContinueAgentLoop(
 	return core.ContinueAgentLoop(ctx, initial, config, sink)
 }
 
+// NewAgent 创建管理 transcript、队列和订阅者的高层有状态 Agent。
 func NewAgent(options AgentOptions) (*Agent, error) {
 	return core.NewAgent(options)
 }

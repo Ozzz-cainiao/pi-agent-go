@@ -79,6 +79,10 @@ type agentOwnedState struct {
 }
 
 // Agent 通过单一 owner goroutine 串行管理高层状态。
+//
+// 低层 RunAgentLoop 是一次调用内的纯运行器；高层 Agent 则长期持有 transcript、工具、
+// steering/follow-up 队列和 subscriber。所有状态读写都变成 agentStateCommand，由一个
+// goroutine 串行处理，从结构上避免多个 Gateway 请求同时修改同一 AgentState。
 type Agent struct {
 	commands   chan agentStateCommand
 	done       chan struct{}
@@ -192,6 +196,7 @@ func (agent *Agent) execute(command agentStateCommand) (agentStateReply, error) 
 	if agent.closing.Load() && !allowedWhileClosing(command.operation) {
 		return agentStateReply{}, ErrAgentClosed
 	}
+	// 每条命令自带一次性 reply channel，调用者同步等待 owner 应用状态变更。
 	command.reply = make(chan agentStateReply, 1)
 	select {
 	case <-agent.done:
@@ -203,6 +208,7 @@ func (agent *Agent) execute(command agentStateCommand) (agentStateReply, error) 
 }
 
 func (agent *Agent) ownState(state AgentState, queues agentQueues) {
+	// 这是 AgentState 的唯一写入者。外部方法只能发送命令，不能直接接触 owned state。
 	defer close(agent.done)
 	owned := agentOwnedState{
 		state: state, steeringQueue: queues.steering, followUpQueue: queues.followUp,

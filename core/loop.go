@@ -26,7 +26,10 @@ type Clock func() time.Time
 // ConvertToLLMFunc 将 Agent 消息转换为 Model 可接收的核心消息。
 type ConvertToLLMFunc func(context.Context, []AgentMessage) ([]Message, error)
 
-// LoopConfig 集中声明 Agent Loop 的依赖与安全限制。
+// LoopConfig 集中声明 Agent Loop 的依赖、扩展点与安全限制。
+//
+// Stream 是唯一必填项，它把 Core 接到具体 Model Provider。其余函数字段都是可选 Hook；
+// 零值配置会采用默认消息转换、JSON Schema 校验、并行工具执行和 DefaultMaxTurns。
 type LoopConfig struct {
 	Stream              StreamFunc
 	TransformContext    TransformContextFunc
@@ -166,7 +169,17 @@ func defaultConvertToLLM(
 	return converted, nil
 }
 
-// RunAgentLoop 使用本轮消息调用 Model，并返回本轮新增的消息。
+// RunAgentLoop 使用本轮 prompts 启动 Agent Loop，并返回本次新增的全部消息。
+//
+// 参数职责：
+//
+//   - ctx：把 Gateway 断连、请求超时等取消信号一直传到 Provider 和 Tool。
+//   - prompts：这次刚进入循环的新消息，通常是一条 UserMessage。
+//   - initial：调用前已有的 SystemPrompt、历史消息和可用工具快照。
+//   - config：Provider Stream、Hook、时钟与轮次上限。
+//   - sink：可选的完整生命周期观察者；它不参与业务决策。
+//
+// 返回切片不重复 initial.Messages，便于上层只把增量追加回 Session。
 func RunAgentLoop(
 	ctx context.Context,
 	prompts []AgentMessage,
@@ -174,6 +187,7 @@ func RunAgentLoop(
 	config LoopConfig,
 	sink AgentEventSink,
 ) (messages []AgentMessage, runError error) {
+	// state.current 是发送给下一轮 Model 的累计上下文；state.messages 只记录本次增量。
 	newMessages := slices.Clone(prompts)
 	state := loopState{
 		current:  initial.WithMessages(prompts...),
@@ -189,6 +203,7 @@ func runLoopLifecycle(
 	sink AgentEventSink,
 	state *loopState,
 ) ([]AgentMessage, error) {
+	// 即使中间失败也尝试发送 agent_end，让 Gateway/UI 能闭合一次运行的生命周期。
 	events := newAgentEventEmitter(sink)
 	if err := events.emit(AgentStartEvent{}); err != nil {
 		return state.messages, err
@@ -257,6 +272,9 @@ func (continuationError *ContinuationError) Unwrap() []error {
 }
 
 // ContinueAgentLoop 从已有历史继续执行，只返回本次新增消息。
+//
+// 与 RunAgentLoop 的区别是它没有新 prompts，适合 transcript 已以 ToolResultMessage 等
+// 可继续状态结尾的场景；AssistantMessage 结尾会被拒绝，避免无输入地反复请求 Model。
 func ContinueAgentLoop(
 	ctx context.Context,
 	initial AgentContext,

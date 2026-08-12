@@ -33,6 +33,9 @@ const (
 )
 
 // AgentState 是高层 Agent 当前状态的只读快照。
+//
+// State 方法会深复制可变字段，所以调用方可以安全读取或修改返回值；真正的内部状态
+// 仍由 Agent 的 owner goroutine 独占。
 type AgentState struct {
 	SystemPrompt     string
 	Model            ModelID
@@ -139,7 +142,7 @@ func (agent *Agent) Reset() error {
 	return err
 }
 
-// Prompt 启动一次低层 Agent Loop，并等待 subscriber 全部完成。
+// Prompt 把新消息交给低层 RunAgentLoop，并等待本次运行及 subscriber 全部完成。
 func (agent *Agent) Prompt(ctx context.Context, prompts ...AgentMessage) error {
 	return agent.executeRun(ctx, func(
 		runContext context.Context,
@@ -238,6 +241,8 @@ func (agent *Agent) executeRun(
 	ctx context.Context,
 	executor agentRunExecutor,
 ) (result error) {
+	// 一个高层 Agent 同时只允许一个 active run。runContext 连接 Abort/Close 与下游
+	// Provider、Tool；defer 无论成功失败都会恢复 idle 并汇总 subscriber 错误。
 	runContext, cancel := context.WithCancel(ctx)
 	reply, err := agent.execute(agentStateCommand{
 		operation: agentStateBeginRun,

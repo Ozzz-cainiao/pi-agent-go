@@ -32,6 +32,9 @@ type AgentEvent interface {
 }
 
 // AgentEventSink 按产生顺序接收生命周期事件。
+//
+// 云端 Harness 可在这里把增量转发给 gRPC Gateway，也可以在这里记录指标；Sink 不应
+// 修改 Agent 决策。Core 会在调用 Sink 前创建快照，并在并行工具场景下串行化交付。
 type AgentEventSink func(AgentEvent) error
 
 // AgentStartEvent 表示一次 Agent Loop 已开始。
@@ -170,6 +173,7 @@ func (emitter agentEventEmitter) emit(event AgentEvent) error {
 	if emitter.sink == nil {
 		return nil
 	}
+	// 多个 Tool worker 可能同时产生 update/end；互斥锁保证 Sink 永远不会被并发调用。
 	emitter.mutex.Lock()
 	defer emitter.mutex.Unlock()
 	snapshot, err := event.snapshot()

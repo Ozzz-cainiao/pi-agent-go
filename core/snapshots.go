@@ -38,6 +38,7 @@ type snapshotVisit struct {
 }
 
 type snapshotCloner struct {
+	// visited 既防止循环引用导致无限递归，也保持共享子对象在快照中的拓扑关系。
 	visited map[snapshotVisit]reflect.Value
 }
 
@@ -53,6 +54,8 @@ func (cloner *snapshotCloner) cloneValue(
 		return value, nil
 	}
 
+	// ToolResult.Details 和 ToolCall.Arguments 允许携带应用自定义值，因此这里不能只复制
+	// map[string]any；需要沿反射对象图复制所有可安全表达的 Go 值。
 	switch value.Kind() {
 	case reflect.Interface:
 		return cloner.cloneInterface(value, path)
